@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบปิดยอดร้าน V15.6 (Stock Summary)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0f9ff; padding-bottom: 120px; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1rem; margin-bottom: 1rem; border: 1px solid #e2e8f0; }
+        .input-label { display: block; font-size: 0.85rem; font-weight: 600; color: #475569; margin-bottom: 0.2rem; text-align: center; }
+        .input-field { width: 100%; border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.4rem; font-size: 1rem; text-align: center; font-weight: 500; }
+        .input-field:focus { outline: none; border-color: #3b82f6; ring: 2px solid #bfdbfe; }
+        .section-header { font-size: 1.1rem; font-weight: bold; color: #0f172a; margin-bottom: 0.8rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem; }
+        
+        .stock-grid { display: grid; grid-template-columns: 1fr 1.5fr 1.5fr 1.5fr; gap: 4px; align-items: end; margin-bottom: 8px; }
+        .dual-input { display: flex; gap: 2px; }
+        .dual-input input { width: 50%; font-size: 0.9rem; }
+        
+        .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #f59e0b; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .img-preview-box { display: none; margin-top: 5px; text-align: center; background: #e2e8f0; border-radius: 8px; padding: 4px; position: relative; }
+        .img-preview-box img { max-height: 120px; max-width: 100%; border-radius: 4px; border: 2px solid white; display: inline-block; }
+        .close-btn { background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; position: absolute; top: -5px; right: -5px; cursor: pointer; line-height: 20px; font-size: 12px; }
+
+        .audit-pass { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .audit-fail { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
+        #connectionStatus { font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; }
+        .status-online { background-color: #dcfce7; color: #166534; border: 1px solid #86efac; }
+        .status-offline { background-color: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    </style>
+</head>
+<body class="p-3 max-w-xl mx-auto">
+
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V15.6</h1>
+        <div id="connectionStatus" class="status-online">
+            <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์
+        </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="bg-white border-2 border-dashed border-indigo-300 rounded-xl p-3 text-center cursor-pointer hover:bg-indigo-50" onclick="document.getElementById('fileInputStock').click()">
+            <div class="text-2xl">📦</div>
+            <p class="font-bold text-indigo-700 text-xs">1. ใบสต็อก</p>
+            <input type="file" id="fileInputStock" accept="image/*" class="hidden" onchange="previewFile('stock')">
+            <div id="previewContainerStock" class="img-preview-box">
+                <button class="close-btn" onclick="closeImage(event, 'stock')">×</button>
+                <img id="imgStock" src="">
+            </div>
+        </div>
+        <div class="bg-white border-2 border-dashed border-green-300 rounded-xl p-3 text-center cursor-pointer hover:bg-green-50" onclick="document.getElementById('fileInputSales').click()">
+            <div class="text-2xl">💰</div>
+            <p class="font-bold text-green-700 text-xs">2. ใบปิดยอด</p>
+            <input type="file" id="fileInputSales" accept="image/*" class="hidden" onchange="previewFile('sales')">
+            <div id="previewContainerSales" class="img-preview-box">
+                <button class="close-btn" onclick="closeImage(event, 'sales')">×</button>
+                <img id="imgSales" src="">
+            </div>
+        </div>
+    </div>
+
+    <!-- ปุ่ม AI -->
+    <div id="aiSection" class="mb-4">
+        <button id="btnAutoFill" onclick="extractDataFromImage()" class="w-full bg-yellow-500 text-white font-bold py-2 rounded-lg text-sm shadow-md hover:bg-yellow-600 transition flex items-center justify-center gap-2">
+            ✨ ให้ AI ช่วยอ่านตัวเลข
+        </button>
+        <div id="fillLoading" class="hidden text-center py-2">
+            <div class="loading-spinner"></div>
+            <p class="text-yellow-700 text-xs mt-1">กำลังอ่านลายมือ...</p>
+        </div>
+        <div id="apiKeyWarning" class="hidden text-center text-red-500 text-xs mt-1 bg-red-50 p-1 rounded">⚠️ กรุณาใส่ API Key ด้านล่างก่อนใช้งาน AI</div>
+    </div>
+
+    <!-- 1. ตารางสต็อก -->
+    <div class="card border-t-4 border-indigo-500">
+        <div class="section-header text-indigo-700">📦 เช็คสต็อก</div>
+        <div class="stock-grid text-[10px] text-gray-500 font-bold text-center bg-gray-50 p-1 rounded-t">
+            <div class="text-left pl-1">สินค้า</div> <div>เก่า</div> <div class="text-blue-600">เติม</div> <div class="text-red-600">เหลือ</div>
+        </div>
+        <div class="space-y-2" id="stockContainer">
+            <!-- จะถูกสร้างด้วย JS เพื่อความกระชับ -->
+        </div>
+    </div>
+
+    <!-- 2. เงิน -->
+    <div class="card border-t-4 border-green-500">
+        <div class="section-header text-green-700">💰 รายรับ & จ่าย</div>
+        <div class="grid grid-cols-2 gap-3 mb-2">
+            <div><label class="input-label">เงินสด</label><input type="number" id="cash" class="input-field bg-green-50" placeholder="0"></div>
+            <div><label class="input-label">ยอดโอน (K)</label><input type="number" id="transfer" class="input-field bg-blue-50" placeholder="0"></div>
+        </div>
+        <div class="mb-2"><label class="input-label text-red-600">💸 จ่ายรายวัน (จากลิ้นชัก)</label><input type="number" id="daily_expense" class="input-field bg-red-50" placeholder="65"></div>
+        <select id="fixed_cost_select" onchange="toggleCustomFixedCost()" class="w-full text-sm border p-1 rounded bg-gray-50">
+            <option value="815">ค่าที่+แรง (815 บ.)</option>
+            <option value="custom">ระบุเอง...</option>
+        </select>
+        <input type="number" id="fixed_cost_custom" class="input-field hidden mt-1" placeholder="ระบุ">
+    </div>
+
+    <!-- 3. ของเสีย/ท็อปปิ้ง -->
+    <div class="card border-t-4 border-yellow-400">
+        <div class="section-header text-yellow-700">⚠️ ของเสีย & Top</div>
+        <div class="grid grid-cols-3 gap-3">
+            <div><label class="input-label text-xs">เสีย:เกี๊ยว</label><input type="number" id="waste_dumpling" class="input-field" placeholder="0"></div>
+            <div><label class="input-label text-xs">เสีย:BBQ</label><input type="number" id="waste_bbq" class="input-field" placeholder="0"></div>
+            <div class="hidden"></div> <!-- Spacer -->
+            <div><label class="input-label text-xs">Set 150</label><input type="number" id="set150_count" class="input-field" placeholder="0"></div>
+            <div><label class="input-label text-xs">Set 250 (20ตัว)</label><input type="number" id="set250_count" class="input-field" placeholder="0"></div>
+            <div><label class="input-label text-xs">Set 290</label><input type="number" id="set290_count" class="input-field" placeholder="0"></div>
+        </div>
+    </div>
+
+    <button onclick="calculateProfit()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold py-4 rounded-xl text-xl shadow-lg hover:scale-[1.02] transition mb-8">
+        ✅ คำนวณกำไร
+    </button>
+
+    <!-- Settings: API Key -->
+    <div class="card border-t-4 border-gray-400 bg-gray-50 mb-8">
+        <div class="section-header text-gray-700 flex justify-between" onclick="toggleSettings()">
+            <span>🔑 ตั้งค่า API Key (สำหรับ AI)</span>
+            <span class="text-xs text-blue-500 underline cursor-pointer">กดเพื่อเปิด/ปิด</span>
+        </div>
+        <div id="settingsArea" class="hidden">
+            <p class="text-xs text-gray-500 mb-2">ใส่ Gemini API Key ที่นี่เพื่อเปิดใช้งานระบบอ่านภาพและวิเคราะห์ (ขอฟรีที่ aistudio.google.com)</p>
+            <input type="password" id="apiKeyInput" class="w-full border p-2 rounded mb-2 text-sm" placeholder="วางรหัส AIza... ที่นี่">
+            <button onclick="saveApiKey()" class="w-full bg-gray-600 text-white py-1 rounded text-sm">บันทึกกุญแจ</button>
+            <p id="keyStatus" class="text-xs text-center mt-2 text-gray-400"></p>
+        </div>
+    </div>
+
+    <!-- Modal ผลลัพธ์ -->
+    <div id="resultSection" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-slide-up max-h-[85vh] overflow-y-auto">
+            <div class="bg-gray-800 p-3 text-white flex justify-between items-center sticky top-0">
+                <h2 class="font-bold">📊 ผลการปิดยอด</h2>
+                <button onclick="closeResult()" class="text-white text-xl">&times;</button>
+            </div>
+            <div class="p-4 space-y-3 text-sm">
+                <!-- Audit -->
+                <div id="audit_box" class="p-3 rounded-lg border-2">
+                    <h3 class="font-bold flex gap-2"><span id="audit_icon"></span> ตรวจสอบเงิน</h3>
+                    <div class="flex justify-between mt-1"><span>ควรได้:</span> <span id="res_expected" class="font-bold">0</span></div>
+                    <div class="flex justify-between border-b pb-1"><span>นับได้จริง:</span> <span id="res_actual" class="text-blue-600 font-bold">0</span></div>
+                    <div class="flex justify-between mt-1"><span class="font-bold">ส่วนต่าง:</span> <span id="res_diff" class="text-lg font-bold">0</span></div>
+                    <p id="audit_msg" class="text-xs text-center mt-1"></p>
+                </div>
+                
+                <!-- Profit -->
+                <div class="text-center bg-green-50 p-3 rounded-lg border border-green-200">
+                    <p class="text-green-800 font-bold">💰 กำไรสุทธิ</p>
+                    <div id="res_profit" class="text-3xl font-bold text-green-600">0</div>
+                </div>
+
+                <!-- Breakdown Sales -->
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <p class="font-bold text-gray-700 mb-2 border-b pb-1">🛒 สรุปยอดขาย (Sold):</p>
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="text-center py-2 bg-yellow-50 rounded border border-yellow-100">
+                            <span class="text-xs text-yellow-800 block">🥟 เกี๊ยวซ่าขาย</span>
+                            <span id="res_total_dumplings" class="text-lg font-bold text-yellow-700">0</span>
+                            <span class="text-xs text-yellow-600">ตัว</span>
+                        </div>
+                        <div class="text-center py-2 bg-red-50 rounded border border-red-100">
+                            <span class="text-xs text-red-800 block">🍢 BBQ ขาย</span>
+                            <span id="res_total_bbq" class="text-lg font-bold text-red-700">0</span>
+                            <span class="text-xs text-red-600">ไม้</span>
+                        </div>
+                    </div>
+                    <div id="item_breakdown_list" class="space-y-1 text-xs text-gray-600"></div>
+                </div>
+
+                 <!-- Remaining Stock (NEW) -->
+                 <div class="bg-blue-50 p-3 rounded-lg border border-blue-200 mt-2">
+                    <p class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1">🧊 สรุปของเหลือ (Stock คงเหลือ):</p>
+                    <div id="remaining_stock_list" class="space-y-1 text-xs text-blue-700"></div>
+                </div>
+
+                <!-- Export & AI Analysis -->
+                <div class="mt-2 pt-2 border-t space-y-2">
+                    <button onclick="exportReport()" class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                        📤 ดาวน์โหลดรายงาน (TXT)
+                    </button>
+                    <button id="btnAskAI" onclick="askGemini()" class="w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
+                        🤖 วิเคราะห์ผล (AI)
+                    </button>
+                    
+                    <div id="aiLoading" class="hidden text-center mt-2"><div class="loading-spinner"></div></div>
+                    <div id="aiResult" class="hidden mt-2 text-xs bg-purple-50 p-2 rounded markdown-body"></div>
+                </div>
+            </div>
+            <div class="p-2 bg-gray-100 text-center"><button onclick="closeResult()" class="w-full bg-gray-300 py-2 rounded text-gray-700 font-bold">ปิด</button></div>
+        </div>
+    </div>
+
+    <script>
+        // Init Stock UI
+        const products = [
+            {id:'s', name:'กุ้ง(S)', desc:'ถุง24', color:'text-orange-600', unit:24},
+            {id:'c', name:'ไก่(C)', desc:'ถุง32', color:'text-yellow-600', unit:32},
+            {id:'p', name:'หมู(P)', desc:'ถุง32', color:'text-pink-600', unit:32},
+            {id:'v', name:'ผัก(V)', desc:'ถุง30', color:'text-green-600', unit:30},
+            {id:'bb', name:'BBQ', desc:'ถุง20', color:'text-red-700', unit:20},
+            {id:'b', name:'พริก(B)', desc:'ถุง20', color:'text-gray-600', unit:20}
+        ];
+        const stockHTML = products.map(p => `
+            <div class="stock-grid">
+                <div class="text-xs font-bold ${p.color}">${p.name}<br><span class="text-[9px] text-gray-400 font-normal">${p.desc}</span></div>
+                <div class="dual-input"><input type="number" id="${p.id}_prev_bag" placeholder="ถ" class="input-field bg-gray-50"><input type="number" id="${p.id}_prev_unit" placeholder="ศ" class="input-field bg-gray-50"></div>
+                <div class="dual-input"><input type="number" id="${p.id}_add_bag" placeholder="ถ" class="input-field bg-blue-50"><input type="number" id="${p.id}_add_unit" placeholder="ศ" class="input-field bg-blue-50"></div>
+                <div class="dual-input"><input type="number" id="${p.id}_end_bag" placeholder="ถ" class="input-field bg-red-50"><input type="number" id="${p.id}_end_unit" placeholder="ศ" class="input-field bg-red-50"></div>
+            </div>
+        `).join('');
+        document.getElementById('stockContainer').innerHTML = stockHTML;
+
+        // --- Logic ---
+        function getApiKey() { return localStorage.getItem('gemini_api_key'); }
+        function saveApiKey() {
+            const key = document.getElementById('apiKeyInput').value.trim();
+            if(key) {
+                localStorage.setItem('gemini_api_key', key);
+                document.getElementById('keyStatus').innerText = "✅ บันทึกแล้ว";
+                document.getElementById('apiKeyWarning').classList.add('hidden');
+            }
+        }
+        function toggleSettings() { document.getElementById('settingsArea').classList.toggle('hidden'); }
+        
+        // Load saved key on start
+        if(getApiKey()) { 
+            document.getElementById('apiKeyInput').value = getApiKey();
+            document.getElementById('keyStatus').innerText = "✅ พร้อมใช้งาน";
+        }
+
+        window.addEventListener('online', updateStatus);
+        window.addEventListener('offline', updateStatus);
+        function updateStatus() {
+            const el = document.getElementById('connectionStatus');
+            if(navigator.onLine) {
+                el.className = 'status-online'; el.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์';
+            } else {
+                el.className = 'status-offline'; el.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-600"></span> ออฟไลน์';
+            }
+        }
+
+        // Images with MIME Type Handling
+        window.stockData = { base64: null, mime: null };
+        window.salesData = { base64: null, mime: null };
+
+        function previewFile(type) {
+            const input = document.getElementById(type === 'stock' ? 'fileInputStock' : 'fileInputSales');
+            const imgBox = document.getElementById(type === 'stock' ? 'previewContainerStock' : 'previewContainerSales');
+            const img = document.getElementById(type === 'stock' ? 'imgStock' : 'imgSales');
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = function() {
+                img.src = reader.result; 
+                imgBox.style.display = 'block';
+                
+                try {
+                    const base64 = reader.result.split(',')[1];
+                    const mime = reader.result.split(',')[0].match(/:(.*?);/)[1];
+
+                    if(type === 'stock') {
+                         window.stockData = { base64, mime };
+                    } else {
+                         window.salesData = { base64, mime };
+                    }
+                } catch (e) {
+                    console.error("Error reading file:", e);
+                    alert("รูปภาพไม่รองรับ กรุณาเลือกไฟล์ใหม่");
+                }
+            }
+            if(file) reader.readAsDataURL(file);
+        }
+
+        function closeImage(e, type) {
+            e.stopPropagation();
+            document.getElementById(type === 'stock' ? 'previewContainerStock' : 'previewContainerSales').style.display = 'none';
+            document.getElementById(type === 'stock' ? 'fileInputStock' : 'fileInputSales').value = "";
+            if(type === 'stock') window.stockData = { base64: null, mime: null }; 
+            else window.salesData = { base64: null, mime: null };
+        }
+
+        function closeResult() {
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('aiResult').classList.add('hidden');
+            document.getElementById('btnAskAI').classList.remove('hidden');
+        }
+        function toggleCustomFixedCost() {
+            const val = document.getElementById('fixed_cost_select').value;
+            document.getElementById('fixed_cost_custom').classList.toggle('hidden', val !== 'custom');
+        }
+        function getVal(id) { return parseFloat(document.getElementById(id).value) || 0; }
+        function setVal(id, val) { if(val !== null && val !== undefined) document.getElementById(id).value = val; }
+
+        let globalData = {};
+
+        function calculateStock(pfx, unitPerBag) {
+            let prev = (getVal(pfx+'_prev_bag') * unitPerBag) + getVal(pfx+'_prev_unit');
+            let add = (getVal(pfx+'_add_bag') * unitPerBag) + getVal(pfx+'_add_unit');
+            let end = (getVal(pfx+'_end_bag') * unitPerBag) + getVal(pfx+'_end_unit');
+            return Math.max(0, (prev + add) - end);
+        }
+
+        function calculateProfit() {
+            let cash = getVal('cash'), transfer = getVal('transfer'), daily = getVal('daily_expense');
+            let actual_rev = cash + transfer + daily;
+
+            let s = calculateStock('s', 24), c = calculateStock('c', 32), p = calculateStock('p', 32), v = calculateStock('v', 30);
+            let bb = calculateStock('bb', 20), b = calculateStock('b', 20);
+
+            let dump_waste = getVal('waste_dumpling'), bbq_waste = getVal('waste_bbq');
+            let set150 = getVal('set150_count'), set290 = getVal('set290_count'), set250 = getVal('set250_count');
+
+            let dump_sales_val = (s+c+p+v - dump_waste) * 13;
+            let bbq_sales_val = (bb+b - bbq_waste) * 50;
+            
+            let top_gain = (set150 * 20) + (set290 * 40) + (set250 * -10);
+            let expected = dump_sales_val + bbq_sales_val + top_gain;
+
+            let cost = ((s+c+p+v) * 6.5) + ((bb+b) * 24);
+            let fixed = document.getElementById('fixed_cost_select').value === 'custom' ? getVal('fixed_cost_custom') : parseFloat(document.getElementById('fixed_cost_select').value);
+            let profit = actual_rev - cost - fixed - daily;
+            
+            // Calculate Split Sales Totals
+            let totalDumplingsSold = s + c + p + v;
+            let totalBBQSold = bb + b;
+
+            // --- Remaining Stock Calculation ---
+            let remainingText = "";
+            let remainingItems = [];
+            
+            products.forEach(prod => {
+                // Get Raw End Input
+                let endBag = getVal(`${prod.id}_end_bag`);
+                let endUnit = getVal(`${prod.id}_end_unit`);
+                
+                // Calculate Total Raw Units remaining
+                let totalRemainingUnits = (endBag * prod.unit) + endUnit;
+                
+                // Convert to Bag + Unit display
+                let displayBag = Math.floor(totalRemainingUnits / prod.unit);
+                let displayUnit = totalRemainingUnits % prod.unit;
+                
+                let unitName = (prod.id === 'bb' || prod.id === 'b') ? 'ไม้' : 'ตัว';
+                
+                if (totalRemainingUnits > 0) {
+                    let txt = `<b>${prod.name}:</b> เหลือ ${displayBag} ถุง กับ ${displayUnit} ${unitName}`;
+                    remainingText += `<div class="flex justify-between">${txt}</div>`;
+                    remainingItems.push(`${prod.name}: ${displayBag} ถ ${displayUnit} ${unitName}`);
+                } else {
+                     remainingText += `<div class="flex justify-between text-gray-400">${prod.name}: หมด</div>`;
+                     remainingItems.push(`${prod.name}: หมด`);
+                }
+            });
+
+            globalData = { 
+                actual_rev, profit, 
+                diff: actual_rev - expected, 
+                items: {s,c,p,v,bb,b, dumplings: totalDumplingsSold, bbq: totalBBQSold},
+                remaining: remainingItems
+            };
+            
+            document.getElementById('resultSection').classList.remove('hidden');
+            document.getElementById('res_expected').innerText = expected.toLocaleString();
+            document.getElementById('res_actual').innerText = actual_rev.toLocaleString();
+            document.getElementById('res_diff').innerText = (actual_rev - expected).toLocaleString();
+            document.getElementById('res_profit').innerText = profit.toLocaleString() + " ฿";
+            
+            // Update Sales Totals UI
+            document.getElementById('res_total_dumplings').innerText = totalDumplingsSold.toLocaleString();
+            document.getElementById('res_total_bbq').innerText = totalBBQSold.toLocaleString();
+
+            // Update Remaining Stock UI
+            document.getElementById('remaining_stock_list').innerHTML = remainingText;
+
+            let diff = actual_rev - expected;
+            let box = document.getElementById('audit_box');
+            if(Math.abs(diff) < 50) { box.className = "p-3 rounded-lg border-2 audit-pass"; document.getElementById('audit_msg').innerText = "ยอดตรง"; }
+            else if(diff > 0) { box.className = "p-3 rounded-lg border-2 bg-blue-50 border-blue-200 text-blue-700"; document.getElementById('audit_msg').innerText = "เงินเกิน"; }
+            else { box.className = "p-3 rounded-lg border-2 audit-fail"; document.getElementById('audit_msg').innerText = "เงินหาย"; }
+
+            document.getElementById('item_breakdown_list').innerHTML = `
+                <div class="flex justify-between"><span>🦐 กุ้ง (S):</span> <span>${s} ตัว</span></div>
+                <div class="flex justify-between"><span>🐔 ไก่ (C):</span> <span>${c} ตัว</span></div>
+                <div class="flex justify-between"><span>🐷 หมู (P):</span> <span>${p} ตัว</span></div>
+                <div class="flex justify-between"><span>🥬 ผัก (V):</span> <span>${v} ตัว</span></div>
+                <div class="flex justify-between border-t border-dashed my-1 pt-1"><span>🍢 บาร์บีคิว (BB):</span> <span>${bb} ไม้</span></div>
+                <div class="flex justify-between"><span>🌶️ พริกไทยดำ (B):</span> <span>${b} ไม้</span></div>
+            `;
+        }
+
+        function exportReport() {
+            if (!globalData.items) return alert("กรุณากดคำนวณก่อนครับ");
+            
+            const d = new Date();
+            const dateStr = d.toLocaleDateString('th-TH');
+            const timeStr = d.toLocaleTimeString('th-TH');
+            
+            let txt = `=== สรุปยอดร้าน (${dateStr} ${timeStr}) ===\n`;
+            txt += `รายรับจริง: ${globalData.actual_rev.toLocaleString()} บาท\n`;
+            txt += `กำไรสุทธิ: ${globalData.profit.toLocaleString()} บาท\n`;
+            txt += `สถานะเงิน: ${document.getElementById('audit_msg').innerText} (${document.getElementById('res_diff').innerText})\n`;
+            txt += `--------------------------\n`;
+            txt += `[ยอดขาย]\n`;
+            txt += `🥟 เกี๊ยวซ่าขาย: ${globalData.items.dumplings} ตัว\n`;
+            txt += `🍢 BBQ ขาย: ${globalData.items.bbq} ไม้\n`;
+            txt += `--------------------------\n`;
+            txt += `[สต็อกคงเหลือ]\n`;
+            globalData.remaining.forEach(line => {
+                txt += `- ${line}\n`;
+            });
+            txt += `==========================\n`;
+            txt += `Created by Smart Shop V15.6`;
+
+            // Add BOM for UTF-8
+            const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `report_${d.toISOString().slice(0,10)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function extractDataFromImage() {
+            if (!navigator.onLine) return alert("ต้องใช้อินเทอร์เน็ตครับ");
+            const apiKey = getApiKey();
+            if (!apiKey) {
+                document.getElementById('apiKeyWarning').classList.remove('hidden');
+                document.getElementById('settingsArea').classList.remove('hidden'); 
+                document.getElementById('apiKeyInput').focus();
+                return alert("กรุณาใส่ API Key ก่อนครับ");
+            }
+            if (!window.stockData.base64 && !window.salesData.base64) return alert("เลือกรูปก่อนครับ");
+            
+            document.getElementById('btnAutoFill').classList.add('hidden');
+            document.getElementById('fillLoading').classList.remove('hidden');
+            
+            const contentParts = [{ text: `
+                Extract shop data to JSON from these handwritten logs.
+                Stock Log (Table with S, C, P...): Look for previous (start) and added (refill) amounts.
+                Sales Log: Look for Ending counts, Cash, Transfer (K), Expenses.
+                JSON Keys: cash, transfer, daily_expense, set150_count, set290_count, set250_count,
+                s_prev_bag, s_prev_unit, s_add_bag, s_add_unit, s_end_bag, s_end_unit,
+                c_prev_bag, c_prev_unit, c_add_bag, c_add_unit, c_end_bag, c_end_unit,
+                p_prev_bag, p_prev_unit, p_add_bag, p_add_unit, p_end_bag, p_end_unit,
+                v_prev_bag, v_prev_unit, v_add_bag, v_add_unit, v_end_bag, v_end_unit,
+                bb_prev_bag, bb_prev_unit, bb_add_bag, bb_add_unit, bb_end_bag, bb_end_unit,
+                b_prev_bag, b_prev_unit, b_add_bag, b_add_unit, b_end_bag, b_end_unit.
+                Use 0 for missing values.
+                Output ONLY valid JSON. No markdown.
+            ` }];
+            
+            if (window.stockData.base64) contentParts.push({ inlineData: { mimeType: window.stockData.mime, data: window.stockData.base64 } });
+            if (window.salesData.base64) contentParts.push({ inlineData: { mimeType: window.salesData.mime, data: window.salesData.base64 } });
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ role: "user", parts: contentParts }] })
+                });
+                const data = await res.json();
+                
+                if(data.error) {
+                     if (data.error.message.includes("API key not valid") || data.error.code === 400 || data.error.code === 403) {
+                         throw new Error("API Key ไม่ถูกต้อง หรือหมดอายุครับ (กรุณาตรวจสอบในตั้งค่า)");
+                     }
+                     throw new Error(data.error.message);
+                }
+                
+                let txt = data.candidates[0].content.parts[0].text;
+                const jsonMatch = txt.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    txt = jsonMatch[0];
+                } else {
+                    throw new Error("AI ไม่ได้ส่งค่า JSON กลับมา (Invalid Format)");
+                }
+                
+                const j = JSON.parse(txt);
+
+                ['cash','transfer','daily_expense', 'set150_count', 'set290_count', 'set250_count'].forEach(k => setVal(k, j[k]));
+                ['s','c','p','v','bb','b'].forEach(i => {
+                    ['prev','add','end'].forEach(t => {
+                        setVal(`${i}_${t}_bag`, j[`${i}_${t}_bag`]);
+                        setVal(`${i}_${t}_unit`, j[`${i}_${t}_unit`]);
+                    });
+                });
+                alert("AI อ่านค่าเสร็จแล้ว! ตรวจสอบความถูกต้องก่อนกดคำนวณนะครับ");
+            } catch(e) { 
+                console.error(e);
+                let msg = e.message;
+                if (msg.includes("API Key") || msg.includes("not valid") || msg.includes("403")) {
+                    msg = "API Key ไม่ถูกต้อง หรือหมดอายุครับ กรุณาตรวจสอบในตั้งค่า";
+                    document.getElementById('settingsArea').classList.remove('hidden');
+                    document.getElementById('apiKeyInput').focus();
+                }
+                alert("เกิดข้อผิดพลาด: " + msg); 
+            }
+            
+            document.getElementById('fillLoading').classList.add('hidden');
+            document.getElementById('btnAutoFill').classList.remove('hidden');
+        }
+
+        async function askGemini() {
+            if (!navigator.onLine) return alert("ต้องใช้อินเทอร์เน็ตครับ");
+            const apiKey = getApiKey();
+            if (!apiKey) return alert("กรุณาใส่ API Key ในตั้งค่าก่อนครับ");
+
+            document.getElementById('btnAskAI').classList.add('hidden');
+            document.getElementById('aiLoading').classList.remove('hidden');
+            const prompt = `วิเคราะห์ยอดขายร้านเกี๊ยวซ่า: รายรับ ${globalData.actual_rev}, กำไร ${globalData.profit}, ยอดขายรวม (เกี๊ยว ${globalData.items.dumplings} ตัว, BBQ ${globalData.items.bbq} ไม้), ของเหลือ: ${JSON.stringify(globalData.remaining)}. ขอคำแนะนำสั้นๆ สนุกๆ`;
+             try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                
+                if(data.error) {
+                     if (data.error.message.includes("API key not valid")) {
+                         document.getElementById('settingsArea').classList.remove('hidden');
+                         throw new Error("API Key ไม่ถูกต้องครับ");
+                     }
+                     throw new Error(data.error.message);
+                }
+
+                const txt = data.candidates[0].content.parts[0].text;
+                document.getElementById('aiResult').innerHTML = marked.parse(txt);
+                document.getElementById('aiResult').classList.remove('hidden');
+            } catch(e) { 
+                console.log(e); 
+                alert("เกิดข้อผิดพลาด AI: " + e.message); 
+            }
+            document.getElementById('aiLoading').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
