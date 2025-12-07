@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V15.7 (Cam/File Choice)</title>
+    <title>ระบบปิดยอดร้าน V16.0 (AutoSave)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -37,13 +37,19 @@
 <body class="p-3 max-w-xl mx-auto">
 
     <div class="flex justify-between items-center mb-4">
-        <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V15.7</h1>
-        <div id="connectionStatus" class="status-online">
-            <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V16.0</h1>
+            <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+            <div id="connectionStatus" class="status-online">
+                <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์
+            </div>
+            <button onclick="clearAllData()" class="text-xs text-red-500 underline">ล้างข้อมูลเริ่มใหม่</button>
         </div>
     </div>
 
-    <!-- Upload Section (Revised with 2 buttons) -->
+    <!-- Upload Section -->
     <div class="grid grid-cols-2 gap-3 mb-4">
         <!-- Stock -->
         <div class="bg-white border-2 border-dashed border-indigo-300 rounded-xl p-3 text-center hover:bg-indigo-50">
@@ -57,11 +63,8 @@
                     📁 ไฟล์
                 </button>
             </div>
-            
-            <!-- Inputs -->
             <input type="file" id="stock_cam" accept="image/*" capture="environment" class="hidden" onchange="previewFile(this, 'stock')">
             <input type="file" id="stock_file" accept="image/*" class="hidden" onchange="previewFile(this, 'stock')">
-            
             <div id="previewContainerStock" class="img-preview-box">
                 <button class="close-btn" onclick="closeImage(event, 'stock')">×</button>
                 <img id="imgStock" src="">
@@ -80,11 +83,8 @@
                     📁 ไฟล์
                 </button>
             </div>
-
-            <!-- Inputs -->
             <input type="file" id="sales_cam" accept="image/*" capture="environment" class="hidden" onchange="previewFile(this, 'sales')">
             <input type="file" id="sales_file" accept="image/*" class="hidden" onchange="previewFile(this, 'sales')">
-
             <div id="previewContainerSales" class="img-preview-box">
                 <button class="close-btn" onclick="closeImage(event, 'sales')">×</button>
                 <img id="imgSales" src="">
@@ -110,9 +110,7 @@
         <div class="stock-grid text-[10px] text-gray-500 font-bold text-center bg-gray-50 p-1 rounded-t">
             <div class="text-left pl-1">สินค้า</div> <div>เก่า</div> <div class="text-blue-600">เติม</div> <div class="text-red-600">เหลือ</div>
         </div>
-        <div class="space-y-2" id="stockContainer">
-            <!-- จะถูกสร้างด้วย JS เพื่อความกระชับ -->
-        </div>
+        <div class="space-y-2" id="stockContainer"></div>
     </div>
 
     <!-- 2. เงิน -->
@@ -136,10 +134,13 @@
         <div class="grid grid-cols-3 gap-3">
             <div><label class="input-label text-xs">เสีย:เกี๊ยว</label><input type="number" id="waste_dumpling" class="input-field" placeholder="0"></div>
             <div><label class="input-label text-xs">เสีย:BBQ</label><input type="number" id="waste_bbq" class="input-field" placeholder="0"></div>
-            <div class="hidden"></div> <!-- Spacer -->
-            <div><label class="input-label text-xs">Set 150</label><input type="number" id="set150_count" class="input-field" placeholder="0"></div>
+            
+            <!-- เพิ่มช่องขายแยก -->
+            <div><label class="input-label text-xs text-blue-600">ขายแยก (ตัวละ10)</label><input type="number" id="individual_10_count" class="input-field bg-blue-50" placeholder="ใส่จำนวนตัว"></div>
+            
+            <div><label class="input-label text-xs">Set 150 (10ตัว)</label><input type="number" id="set150_count" class="input-field" placeholder="0"></div>
             <div><label class="input-label text-xs">Set 250 (20ตัว)</label><input type="number" id="set250_count" class="input-field" placeholder="0"></div>
-            <div><label class="input-label text-xs">Set 290</label><input type="number" id="set290_count" class="input-field" placeholder="0"></div>
+            <div><label class="input-label text-xs">Set 290 (20ตัว)</label><input type="number" id="set290_count" class="input-field" placeholder="0"></div>
         </div>
     </div>
 
@@ -172,10 +173,23 @@
                 <!-- Audit -->
                 <div id="audit_box" class="p-3 rounded-lg border-2">
                     <h3 class="font-bold flex gap-2"><span id="audit_icon"></span> ตรวจสอบเงิน</h3>
-                    <div class="flex justify-between mt-1"><span>ควรได้:</span> <span id="res_expected" class="font-bold">0</span></div>
-                    <div class="flex justify-between border-b pb-1"><span>นับได้จริง:</span> <span id="res_actual" class="text-blue-600 font-bold">0</span></div>
-                    <div class="flex justify-between mt-1"><span class="font-bold">ส่วนต่าง:</span> <span id="res_diff" class="text-lg font-bold">0</span></div>
-                    <p id="audit_msg" class="text-xs text-center mt-1"></p>
+                    
+                    <div class="flex justify-between mt-1 items-end">
+                        <span class="text-gray-600 text-xs">ยอดขายจากของ (รวมปรับ Set):</span> 
+                        <span id="res_expected" class="font-bold text-base">0</span>
+                    </div>
+                    
+                    <div class="flex justify-between border-b pb-1 items-end">
+                        <span class="text-gray-600 text-xs">เงินที่มี (สด+โอน+บิลจ่าย):</span> 
+                        <span id="res_actual" class="text-blue-600 font-bold text-base">0</span>
+                    </div>
+                    
+                    <div class="flex justify-between mt-2 items-center bg-gray-50 p-2 rounded">
+                        <span class="font-bold text-gray-800">ส่วนต่าง:</span> 
+                        <span id="res_diff" class="text-xl font-bold">0</span>
+                    </div>
+                    
+                    <p id="audit_msg" class="text-sm font-bold text-center mt-2"></p>
                 </div>
                 
                 <!-- Profit -->
@@ -187,7 +201,6 @@
                 <!-- Breakdown Sales -->
                 <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <p class="font-bold text-gray-700 mb-2 border-b pb-1">🛒 สรุปยอดขาย (Sold):</p>
-                    
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="text-center py-2 bg-yellow-50 rounded border border-yellow-100">
                             <span class="text-xs text-yellow-800 block">🥟 เกี๊ยวซ่าขาย</span>
@@ -217,7 +230,6 @@
                     <button id="btnAskAI" onclick="askGemini()" class="w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2">
                         🤖 วิเคราะห์ผล (AI)
                     </button>
-                    
                     <div id="aiLoading" class="hidden text-center mt-2"><div class="loading-spinner"></div></div>
                     <div id="aiResult" class="hidden mt-2 text-xs bg-purple-50 p-2 rounded markdown-body"></div>
                 </div>
@@ -239,12 +251,64 @@
         const stockHTML = products.map(p => `
             <div class="stock-grid">
                 <div class="text-xs font-bold ${p.color}">${p.name}<br><span class="text-[9px] text-gray-400 font-normal">${p.desc}</span></div>
-                <div class="dual-input"><input type="number" id="${p.id}_prev_bag" placeholder="ถ" class="input-field bg-gray-50"><input type="number" id="${p.id}_prev_unit" placeholder="ศ" class="input-field bg-gray-50"></div>
-                <div class="dual-input"><input type="number" id="${p.id}_add_bag" placeholder="ถ" class="input-field bg-blue-50"><input type="number" id="${p.id}_add_unit" placeholder="ศ" class="input-field bg-blue-50"></div>
-                <div class="dual-input"><input type="number" id="${p.id}_end_bag" placeholder="ถ" class="input-field bg-red-50"><input type="number" id="${p.id}_end_unit" placeholder="ศ" class="input-field bg-red-50"></div>
+                <div class="dual-input"><input type="number" id="${p.id}_prev_bag" placeholder="ถ" class="input-field bg-gray-50" onchange="autoSave()"><input type="number" id="${p.id}_prev_unit" placeholder="ศ" class="input-field bg-gray-50" onchange="autoSave()"></div>
+                <div class="dual-input"><input type="number" id="${p.id}_add_bag" placeholder="ถ" class="input-field bg-blue-50" onchange="autoSave()"><input type="number" id="${p.id}_add_unit" placeholder="ศ" class="input-field bg-blue-50" onchange="autoSave()"></div>
+                <div class="dual-input"><input type="number" id="${p.id}_end_bag" placeholder="ถ" class="input-field bg-red-50" onchange="autoSave()"><input type="number" id="${p.id}_end_unit" placeholder="ศ" class="input-field bg-red-50" onchange="autoSave()"></div>
             </div>
         `).join('');
         document.getElementById('stockContainer').innerHTML = stockHTML;
+
+        // Auto Save Inputs
+        const allInputs = ['cash', 'transfer', 'daily_expense', 'waste_dumpling', 'waste_bbq', 'individual_10_count', 'set150_count', 'set250_count', 'set290_count', 'fixed_cost_custom'];
+        allInputs.forEach(id => {
+            document.getElementById(id).addEventListener('change', autoSave);
+        });
+
+        function autoSave() {
+            const data = {};
+            // Save Stock Inputs
+            products.forEach(p => {
+                ['prev', 'add', 'end'].forEach(type => {
+                    data[`${p.id}_${type}_bag`] = document.getElementById(`${p.id}_${type}_bag`).value;
+                    data[`${p.id}_${type}_unit`] = document.getElementById(`${p.id}_${type}_unit`).value;
+                });
+            });
+            // Save Sales Inputs
+            allInputs.forEach(id => {
+                data[id] = document.getElementById(id).value;
+            });
+            data['fixed_cost_select'] = document.getElementById('fixed_cost_select').value;
+            
+            localStorage.setItem('shop_v16_data', JSON.stringify(data));
+            document.getElementById('saveStatus').innerText = "✅ บันทึกแล้ว " + new Date().toLocaleTimeString();
+        }
+
+        function loadAutoSave() {
+            const saved = localStorage.getItem('shop_v16_data');
+            if(saved) {
+                const data = JSON.parse(saved);
+                products.forEach(p => {
+                    ['prev', 'add', 'end'].forEach(type => {
+                        setVal(`${p.id}_${type}_bag`, data[`${p.id}_${type}_bag`]);
+                        setVal(`${p.id}_${type}_unit`, data[`${p.id}_${type}_unit`]);
+                    });
+                });
+                allInputs.forEach(id => {
+                    setVal(id, data[id]);
+                });
+                if(data['fixed_cost_select']) {
+                    document.getElementById('fixed_cost_select').value = data['fixed_cost_select'];
+                    toggleCustomFixedCost();
+                }
+            }
+        }
+
+        function clearAllData() {
+            if(confirm('คุณแน่ใจหรือไม่ว่าจะล้างข้อมูลทั้งหมด?')) {
+                localStorage.removeItem('shop_v16_data');
+                location.reload();
+            }
+        }
 
         // --- Logic ---
         function getApiKey() { return localStorage.getItem('gemini_api_key'); }
@@ -258,7 +322,6 @@
         }
         function toggleSettings() { document.getElementById('settingsArea').classList.toggle('hidden'); }
         
-        // Load saved key on start
         if(getApiKey()) { 
             document.getElementById('apiKeyInput').value = getApiKey();
             document.getElementById('keyStatus').innerText = "✅ พร้อมใช้งาน";
@@ -275,12 +338,10 @@
             }
         }
 
-        // Images with MIME Type Handling
         window.stockData = { base64: null, mime: null };
         window.salesData = { base64: null, mime: null };
 
         function previewFile(input, type) {
-            // Note: input passed via 'this'
             const imgBox = document.getElementById(type === 'stock' ? 'previewContainerStock' : 'previewContainerSales');
             const img = document.getElementById(type === 'stock' ? 'imgStock' : 'imgSales');
             const file = input.files[0];
@@ -312,8 +373,6 @@
         function closeImage(e, type) {
             e.stopPropagation();
             document.getElementById(type === 'stock' ? 'previewContainerStock' : 'previewContainerSales').style.display = 'none';
-            
-            // Clear all potential inputs for this type
             if (type === 'stock') {
                 document.getElementById('stock_cam').value = "";
                 document.getElementById('stock_file').value = "";
@@ -333,6 +392,7 @@
         function toggleCustomFixedCost() {
             const val = document.getElementById('fixed_cost_select').value;
             document.getElementById('fixed_cost_custom').classList.toggle('hidden', val !== 'custom');
+            autoSave();
         }
         function getVal(id) { return parseFloat(document.getElementById(id).value) || 0; }
         function setVal(id, val) { if(val !== null && val !== undefined) document.getElementById(id).value = val; }
@@ -355,33 +415,35 @@
 
             let dump_waste = getVal('waste_dumpling'), bbq_waste = getVal('waste_bbq');
             let set150 = getVal('set150_count'), set290 = getVal('set290_count'), set250 = getVal('set250_count');
+            let individual10 = getVal('individual_10_count');
 
             let dump_sales_val = (s+c+p+v - dump_waste) * 13;
             let bbq_sales_val = (bb+b - bbq_waste) * 50;
             
-            let top_gain = (set150 * -20) + (set290 * -30) + (set250 * 10);
-            let expected = dump_sales_val + bbq_sales_val + top_gain;
+            let adj_set250 = set250 * -10;
+            let adj_set150 = set150 * 20;
+            let adj_set290 = set290 * 30;
+            let adj_individual = individual10 * -3;
+            
+            let adjustment = adj_set250 + adj_set150 + adj_set290 + adj_individual;
+            
+            let expected = dump_sales_val + bbq_sales_val + adjustment;
 
             let cost = ((s+c+p+v) * 6.5) + ((bb+b) * 24);
             let fixed = document.getElementById('fixed_cost_select').value === 'custom' ? getVal('fixed_cost_custom') : parseFloat(document.getElementById('fixed_cost_select').value);
             let profit = actual_rev - cost - fixed - daily;
             
-            // Calculate Split Sales Totals
             let totalDumplingsSold = s + c + p + v;
             let totalBBQSold = bb + b;
 
-            // --- Remaining Stock Calculation ---
             let remainingText = "";
             let remainingItems = [];
-            
             products.forEach(prod => {
                 let endBag = getVal(`${prod.id}_end_bag`);
                 let endUnit = getVal(`${prod.id}_end_unit`);
                 let totalRemainingUnits = (endBag * prod.unit) + endUnit;
-                
                 let displayBag = Math.floor(totalRemainingUnits / prod.unit);
                 let displayUnit = totalRemainingUnits % prod.unit;
-                
                 let unitName = (prod.id === 'bb' || prod.id === 'b') ? 'ไม้' : 'ตัว';
                 
                 if (totalRemainingUnits > 0) {
@@ -397,7 +459,7 @@
             globalData = { 
                 actual_rev, profit, 
                 diff: actual_rev - expected, 
-                items: {s,c,p,v,bb,b, dumplings: totalDumplingsSold, bbq: totalBBQSold},
+                items: {s,c,p,v,bb,b, dumplings: totalDumplingsSold, bbq: totalBBQSold, individual: individual10},
                 remaining: remainingItems
             };
             
@@ -409,20 +471,32 @@
             
             document.getElementById('res_total_dumplings').innerText = totalDumplingsSold.toLocaleString();
             document.getElementById('res_total_bbq').innerText = totalBBQSold.toLocaleString();
-
             document.getElementById('remaining_stock_list').innerHTML = remainingText;
 
             let diff = actual_rev - expected;
             let box = document.getElementById('audit_box');
-            if(Math.abs(diff) < 50) { box.className = "p-3 rounded-lg border-2 audit-pass"; document.getElementById('audit_msg').innerText = "ยอดตรง"; }
-            else if(diff > 0) { box.className = "p-3 rounded-lg border-2 bg-blue-50 border-blue-200 text-blue-700"; document.getElementById('audit_msg').innerText = "เงินเกิน"; }
-            else { box.className = "p-3 rounded-lg border-2 audit-fail"; document.getElementById('audit_msg').innerText = "เงินหาย"; }
+            if(Math.abs(diff) < 50) { 
+                box.className = "p-3 rounded-lg border-2 audit-pass"; 
+                document.getElementById('audit_msg').innerText = "✅ ยอดตรง (Perfect)";
+                document.getElementById('res_diff').className = "text-xl font-bold text-green-700";
+            }
+            else if(diff > 0) { 
+                box.className = "p-3 rounded-lg border-2 bg-blue-50 border-blue-200 text-blue-700"; 
+                document.getElementById('audit_msg').innerText = "⚠️ เงินเกิน (Surplus)";
+                document.getElementById('res_diff').className = "text-xl font-bold text-blue-700";
+            }
+            else { 
+                box.className = "p-3 rounded-lg border-2 audit-fail"; 
+                document.getElementById('audit_msg').innerText = "❌ เงินหาย (Missing)"; 
+                document.getElementById('res_diff').className = "text-xl font-bold text-red-700";
+            }
 
             document.getElementById('item_breakdown_list').innerHTML = `
                 <div class="flex justify-between"><span>🦐 กุ้ง (S):</span> <span>${s} ตัว</span></div>
                 <div class="flex justify-between"><span>🐔 ไก่ (C):</span> <span>${c} ตัว</span></div>
                 <div class="flex justify-between"><span>🐷 หมู (P):</span> <span>${p} ตัว</span></div>
                 <div class="flex justify-between"><span>🥬 ผัก (V):</span> <span>${v} ตัว</span></div>
+                <div class="flex justify-between text-blue-600 text-xs mt-1"><span>* ขายแยก (ตัวละ 10):</span> <span>${individual10} ตัว</span></div>
                 <div class="flex justify-between border-t border-dashed my-1 pt-1"><span>🍢 บาร์บีคิว (BB):</span> <span>${bb} ไม้</span></div>
                 <div class="flex justify-between"><span>🌶️ พริกไทยดำ (B):</span> <span>${b} ไม้</span></div>
             `;
@@ -430,7 +504,6 @@
 
         function exportReport() {
             if (!globalData.items) return alert("กรุณากดคำนวณก่อนครับ");
-            
             const d = new Date();
             const dateStr = d.toLocaleDateString('th-TH');
             const timeStr = d.toLocaleTimeString('th-TH');
@@ -442,14 +515,13 @@
             txt += `--------------------------\n`;
             txt += `[ยอดขาย]\n`;
             txt += `🥟 เกี๊ยวซ่าขาย: ${globalData.items.dumplings} ตัว\n`;
+            txt += `   (รวมขายแยก: ${globalData.items.individual} ตัว)\n`;
             txt += `🍢 BBQ ขาย: ${globalData.items.bbq} ไม้\n`;
             txt += `--------------------------\n`;
             txt += `[สต็อกคงเหลือ]\n`;
-            globalData.remaining.forEach(line => {
-                txt += `- ${line}\n`;
-            });
+            globalData.remaining.forEach(line => { txt += `- ${line}\n`; });
             txt += `==========================\n`;
-            txt += `Created by Smart Shop V15.7`;
+            txt += `Created by Smart Shop V16.0`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
@@ -478,7 +550,7 @@
                 Extract shop data to JSON from these handwritten logs.
                 Stock Log (Table with S, C, P...): Look for previous (start) and added (refill) amounts.
                 Sales Log: Look for Ending counts, Cash, Transfer (K), Expenses.
-                JSON Keys: cash, transfer, daily_expense, set150_count, set290_count, set250_count,
+                JSON Keys: cash, transfer, daily_expense, set150_count, set290_count, set250_count, individual_10_count,
                 s_prev_bag, s_prev_unit, s_add_bag, s_add_unit, s_end_bag, s_end_unit,
                 c_prev_bag, c_prev_unit, c_add_bag, c_add_unit, c_end_bag, c_end_unit,
                 p_prev_bag, p_prev_unit, p_add_bag, p_add_unit, p_end_bag, p_end_unit,
@@ -517,7 +589,7 @@
                 
                 const j = JSON.parse(txt);
 
-                ['cash','transfer','daily_expense', 'set150_count', 'set290_count', 'set250_count'].forEach(k => setVal(k, j[k]));
+                ['cash','transfer','daily_expense', 'set150_count', 'set290_count', 'set250_count', 'individual_10_count'].forEach(k => setVal(k, j[k]));
                 ['s','c','p','v','bb','b'].forEach(i => {
                     ['prev','add','end'].forEach(t => {
                         setVal(`${i}_${t}_bag`, j[`${i}_${t}_bag`]);
@@ -525,6 +597,7 @@
                     });
                 });
                 alert("AI อ่านค่าเสร็จแล้ว! ตรวจสอบความถูกต้องก่อนกดคำนวณนะครับ");
+                autoSave();
             } catch(e) { 
                 console.error(e);
                 let msg = e.message;
@@ -573,7 +646,9 @@
             }
             document.getElementById('aiLoading').classList.add('hidden');
         }
+
+        // Load data on startup
+        loadAutoSave();
     </script>
 </body>
 </html>
-
