@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V16.0 (AutoSave)</title>
+    <title>ระบบปิดยอดร้าน V16.1 (Adjust Cash)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -38,7 +38,7 @@
 
     <div class="flex justify-between items-center mb-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V16.0</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V16.1</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -175,12 +175,12 @@
                     <h3 class="font-bold flex gap-2"><span id="audit_icon"></span> ตรวจสอบเงิน</h3>
                     
                     <div class="flex justify-between mt-1 items-end">
-                        <span class="text-gray-600 text-xs">ยอดขายจากของ (รวมปรับ Set):</span> 
+                        <span class="text-gray-600 text-xs">ยอดขายจากของ (Stock Value):</span> 
                         <span id="res_expected" class="font-bold text-base">0</span>
                     </div>
                     
                     <div class="flex justify-between border-b pb-1 items-end">
-                        <span class="text-gray-600 text-xs">เงินที่มี (สด+โอน+บิลจ่าย):</span> 
+                        <span class="text-gray-600 text-xs">เงินปรับปรุง (หักTop/บวกส่วนลด):</span> 
                         <span id="res_actual" class="text-blue-600 font-bold text-base">0</span>
                     </div>
                     
@@ -189,6 +189,9 @@
                         <span id="res_diff" class="text-xl font-bold">0</span>
                     </div>
                     
+                    <div class="text-[10px] text-gray-400 text-center mt-1">
+                        (เงินจริง = <span id="res_raw_cash">0</span> | ปรับปรุง = <span id="res_adj_val">0</span>)
+                    </div>
                     <p id="audit_msg" class="text-sm font-bold text-center mt-2"></p>
                 </div>
                 
@@ -420,14 +423,19 @@
             let dump_sales_val = (s+c+p+v - dump_waste) * 13;
             let bbq_sales_val = (bb+b - bbq_waste) * 50;
             
-            let adj_set250 = set250 * -10;
-            let adj_set150 = set150 * 20;
-            let adj_set290 = set290 * 30;
-            let adj_individual = individual10 * -3;
+            // Expected Revenue is PURE Stock Value (No adjustments here)
+            let expected = dump_sales_val + bbq_sales_val;
+
+            // Logic V16.1: Adjust Cash instead of Expected Revenue
+            // Surcharge 150 (+20): Means Cash is higher than stock value. Subtract to match stock.
+            // Surcharge 290 (+30): Means Cash is higher. Subtract.
+            // Discount 250 (-10): Means Cash is lower than stock. Add back to match stock.
+            // Individual (-3): Means Cash is lower. Add back to match stock.
             
-            let adjustment = adj_set250 + adj_set150 + adj_set290 + adj_individual;
+            let surcharge = (set150 * 20) + (set290 * 30);
+            let discount = (set250 * 10) + (individual10 * 3);
             
-            let expected = dump_sales_val + bbq_sales_val + adjustment;
+            let adjusted_actual = actual_rev - surcharge + discount;
 
             let cost = ((s+c+p+v) * 6.5) + ((bb+b) * 24);
             let fixed = document.getElementById('fixed_cost_select').value === 'custom' ? getVal('fixed_cost_custom') : parseFloat(document.getElementById('fixed_cost_select').value);
@@ -458,22 +466,26 @@
 
             globalData = { 
                 actual_rev, profit, 
-                diff: actual_rev - expected, 
+                diff: adjusted_actual - expected, 
                 items: {s,c,p,v,bb,b, dumplings: totalDumplingsSold, bbq: totalBBQSold, individual: individual10},
-                remaining: remainingItems
+                remaining: remainingItems,
+                adj_val: (discount - surcharge) // Net adjustment for display
             };
             
             document.getElementById('resultSection').classList.remove('hidden');
             document.getElementById('res_expected').innerText = expected.toLocaleString();
-            document.getElementById('res_actual').innerText = actual_rev.toLocaleString();
-            document.getElementById('res_diff').innerText = (actual_rev - expected).toLocaleString();
+            document.getElementById('res_actual').innerText = adjusted_actual.toLocaleString(); // Show Adjusted Cash
+            document.getElementById('res_diff').innerText = (adjusted_actual - expected).toLocaleString();
             document.getElementById('res_profit').innerText = profit.toLocaleString() + " ฿";
+            
+            document.getElementById('res_raw_cash').innerText = actual_rev.toLocaleString();
+            document.getElementById('res_adj_val').innerText = (globalData.adj_val >= 0 ? "+" : "") + globalData.adj_val.toLocaleString();
             
             document.getElementById('res_total_dumplings').innerText = totalDumplingsSold.toLocaleString();
             document.getElementById('res_total_bbq').innerText = totalBBQSold.toLocaleString();
             document.getElementById('remaining_stock_list').innerHTML = remainingText;
 
-            let diff = actual_rev - expected;
+            let diff = adjusted_actual - expected;
             let box = document.getElementById('audit_box');
             if(Math.abs(diff) < 50) { 
                 box.className = "p-3 rounded-lg border-2 audit-pass"; 
@@ -509,9 +521,10 @@
             const timeStr = d.toLocaleTimeString('th-TH');
             
             let txt = `=== สรุปยอดร้าน (${dateStr} ${timeStr}) ===\n`;
-            txt += `รายรับจริง: ${globalData.actual_rev.toLocaleString()} บาท\n`;
+            txt += `เงินรับจริง: ${globalData.actual_rev.toLocaleString()} บาท\n`;
             txt += `กำไรสุทธิ: ${globalData.profit.toLocaleString()} บาท\n`;
-            txt += `สถานะเงิน: ${document.getElementById('audit_msg').innerText} (${document.getElementById('res_diff').innerText})\n`;
+            txt += `สถานะ: ${document.getElementById('audit_msg').innerText} (${document.getElementById('res_diff').innerText})\n`;
+            txt += `(ปรับปรุงยอดเงิน: ${document.getElementById('res_adj_val').innerText})\n`;
             txt += `--------------------------\n`;
             txt += `[ยอดขาย]\n`;
             txt += `🥟 เกี๊ยวซ่าขาย: ${globalData.items.dumplings} ตัว\n`;
@@ -521,7 +534,7 @@
             txt += `[สต็อกคงเหลือ]\n`;
             globalData.remaining.forEach(line => { txt += `- ${line}\n`; });
             txt += `==========================\n`;
-            txt += `Created by Smart Shop V16.0`;
+            txt += `Created by Smart Shop V16.1`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
