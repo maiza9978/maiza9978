@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V18.5 (Final Robust)</title>
+    <title>ระบบปิดยอดร้าน V18.6 (AI Restored)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -51,7 +51,7 @@
 
     <div class="flex justify-between items-center mb-4 no-print">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V18.5</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V18.6</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -127,14 +127,13 @@
         <div class="space-y-2" id="stockContainer"></div>
     </div>
 
-    <!-- 2. Warehouse Stock (Detailed) -->
+    <!-- 2. Warehouse Stock -->
     <div class="card border-t-4 border-purple-500 no-print">
         <div class="section-header text-purple-700 flex justify-between items-center">
             <span>🏭 คลังสินค้า (หักลบอัตโนมัติ)</span>
             <span class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full" id="wh_total_value">มูลค่ารวม: 0 ฿</span>
         </div>
         <div class="text-[10px] text-gray-500 mb-2">* กรอกสต็อกตั้งต้นและราคาต้นทุน ระบบจะหักยอด "เติม" ออกให้เอง</div>
-        
         <div class="wh-grid font-bold text-[10px] text-gray-500 text-center bg-gray-50 p-1 rounded-t">
             <div class="text-left pl-2">สินค้า</div> <div>สต็อกตั้งต้น (ถุง)</div> <div>ต้นทุน/ถุง</div>
         </div>
@@ -220,9 +219,6 @@
                     <div class="flex justify-between mt-2 items-center bg-gray-50 p-2 rounded">
                         <span class="font-bold text-gray-800">ส่วนต่าง:</span> 
                         <span id="res_diff" class="text-xl font-bold">0</span>
-                    </div>
-                    <div class="text-[10px] text-gray-400 text-center mt-1 no-print">
-                        (เงินจริง = <span id="res_raw_cash">0</span> | ปรับปรุง = <span id="res_adj_val">0</span>)
                     </div>
                     <p id="audit_msg" class="text-sm font-bold text-center mt-2"></p>
                 </div>
@@ -386,12 +382,12 @@
             });
             allInputs.forEach(id => data[id] = document.getElementById(id).value);
             data['fixed_cost_select'] = document.getElementById('fixed_cost_select').value;
-            localStorage.setItem('shop_v18_5_data', JSON.stringify(data));
+            localStorage.setItem('shop_v18_6_data', JSON.stringify(data));
             document.getElementById('saveStatus').innerText = "✅ บันทึก Auto " + new Date().toLocaleTimeString();
         }
 
         function loadAutoSave() {
-            const saved = localStorage.getItem('shop_v18_5_data');
+            const saved = localStorage.getItem('shop_v18_6_data');
             if(saved) {
                 const data = JSON.parse(saved);
                 products.forEach(p => {
@@ -413,7 +409,7 @@
 
         function clearAllData() {
             if(confirm('จะล้างข้อมูลทั้งหมด (รวมประวัติ) หรือไม่?')) {
-                localStorage.removeItem('shop_v18_5_data');
+                localStorage.removeItem('shop_v18_6_data');
                 localStorage.removeItem('shop_history');
                 location.reload();
             }
@@ -723,7 +719,7 @@
                 txt += "ไม่มีข้อมูลคลังสินค้า\n";
             }
             txt += `========================================\n`;
-            txt += `Created by Smart Shop V18.5`;
+            txt += `Created by Smart Shop V18.6`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
@@ -735,15 +731,118 @@
         }
 
         async function extractDataFromImage() {
+            if (!navigator.onLine) return alert("ต้องใช้อินเทอร์เน็ตครับ");
             const apiKey = getApiKey();
-            if (!apiKey) return alert("ใส่ API Key ก่อนครับ");
+            if (!apiKey) {
+                document.getElementById('apiKeyWarning').classList.remove('hidden');
+                document.getElementById('settingsArea').classList.remove('hidden'); 
+                document.getElementById('apiKeyInput').focus();
+                return alert("กรุณาใส่ API Key ก่อนครับ");
+            }
+            if (!window.stockData.base64 && !window.salesData.base64) return alert("เลือกรูปก่อนครับ");
+            
             document.getElementById('btnAutoFill').classList.add('hidden');
             document.getElementById('fillLoading').classList.remove('hidden');
-            setTimeout(() => {
-                alert("ฟีเจอร์ AI พร้อมใช้งาน (จำลอง)");
-                document.getElementById('fillLoading').classList.add('hidden');
-                document.getElementById('btnAutoFill').classList.remove('hidden');
-            }, 1000);
+            
+            const contentParts = [{ text: `
+                Extract shop data to JSON from these handwritten logs.
+                Stock Log (Table with S, C, P...): Look for previous (start) and added (refill) amounts.
+                Sales Log: Look for Ending counts, Cash, Transfer (K), Expenses.
+                JSON Keys: cash, transfer, daily_expense, set150_count, set290_count, set250_count, individual_10_count,
+                s_prev_bag, s_prev_unit, s_add_bag, s_add_unit, s_end_bag, s_end_unit,
+                c_prev_bag, c_prev_unit, c_add_bag, c_add_unit, c_end_bag, c_end_unit,
+                p_prev_bag, p_prev_unit, p_add_bag, p_add_unit, p_end_bag, p_end_unit,
+                v_prev_bag, v_prev_unit, v_add_bag, v_add_unit, v_end_bag, v_end_unit,
+                bb_prev_bag, bb_prev_unit, bb_add_bag, bb_add_unit, bb_end_bag, bb_end_unit,
+                b_prev_bag, b_prev_unit, b_add_bag, b_add_unit, b_end_bag, b_end_unit.
+                Use 0 for missing values.
+                Output ONLY valid JSON. No markdown.
+            ` }];
+            
+            if (window.stockData.base64) contentParts.push({ inlineData: { mimeType: window.stockData.mime, data: window.stockData.base64 } });
+            if (window.salesData.base64) contentParts.push({ inlineData: { mimeType: window.salesData.mime, data: window.salesData.base64 } });
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ role: "user", parts: contentParts }] })
+                });
+                const data = await res.json();
+                
+                if(data.error) {
+                     if (data.error.message.includes("API key not valid") || data.error.code === 400 || data.error.code === 403) {
+                         throw new Error("API Key ไม่ถูกต้อง หรือหมดอายุครับ (กรุณาตรวจสอบในตั้งค่า)");
+                     }
+                     throw new Error(data.error.message);
+                }
+                
+                let txt = data.candidates[0].content.parts[0].text;
+                const jsonMatch = txt.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    txt = jsonMatch[0];
+                } else {
+                    throw new Error("AI ไม่ได้ส่งค่า JSON กลับมา (Invalid Format)");
+                }
+                
+                const j = JSON.parse(txt);
+
+                ['cash','transfer','daily_expense', 'set150_count', 'set290_count', 'set250_count', 'individual_10_count'].forEach(k => setVal(k, j[k]));
+                ['s','c','p','v','bb','b'].forEach(i => {
+                    ['prev','add','end'].forEach(t => {
+                        setVal(`${i}_${t}_bag`, j[`${i}_${t}_bag`]);
+                        setVal(`${i}_${t}_unit`, j[`${i}_${t}_unit`]);
+                    });
+                });
+                alert("AI อ่านค่าเสร็จแล้ว! ตรวจสอบความถูกต้องก่อนกดคำนวณนะครับ");
+                autoSave();
+            } catch(e) { 
+                console.error(e);
+                let msg = e.message;
+                if (msg.includes("API Key") || msg.includes("not valid") || msg.includes("403")) {
+                    msg = "API Key ไม่ถูกต้อง หรือหมดอายุครับ กรุณาตรวจสอบในตั้งค่า";
+                    document.getElementById('settingsArea').classList.remove('hidden');
+                    document.getElementById('apiKeyInput').focus();
+                }
+                alert("เกิดข้อผิดพลาด: " + msg); 
+            }
+            
+            document.getElementById('fillLoading').classList.add('hidden');
+            document.getElementById('btnAutoFill').classList.remove('hidden');
+        }
+
+        async function askGemini() {
+            if (!navigator.onLine) return alert("ต้องใช้อินเทอร์เน็ตครับ");
+            const apiKey = getApiKey();
+            if (!apiKey) return alert("กรุณาใส่ API Key ในตั้งค่าก่อนครับ");
+
+            document.getElementById('btnAskAI').classList.add('hidden');
+            document.getElementById('aiLoading').classList.remove('hidden');
+            const prompt = `วิเคราะห์ยอดขายร้านเกี๊ยวซ่า: รายรับ ${globalData.actual_rev}, กำไร ${globalData.profit}, ยอดขายรวม (เกี๊ยว ${globalData.items.dumplings} ตัว, BBQ ${globalData.items.bbq} ไม้), ของเหลือ: ${JSON.stringify(globalData.remaining)}. ขอคำแนะนำสั้นๆ สนุกๆ`;
+             try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const data = await res.json();
+                
+                if(data.error) {
+                     if (data.error.message.includes("API key not valid")) {
+                         document.getElementById('settingsArea').classList.remove('hidden');
+                         throw new Error("API Key ไม่ถูกต้องครับ");
+                     }
+                     throw new Error(data.error.message);
+                }
+
+                const txt = data.candidates[0].content.parts[0].text;
+                document.getElementById('aiResult').innerHTML = marked.parse(txt);
+                document.getElementById('aiResult').classList.remove('hidden');
+            } catch(e) { 
+                console.log(e); 
+                alert("เกิดข้อผิดพลาด AI: " + e.message); 
+            }
+            document.getElementById('aiLoading').classList.add('hidden');
         }
 
         loadAutoSave();
