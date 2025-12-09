@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V17.1 (History Log)</title>
+    <title>ระบบปิดยอดร้าน V17.2 (Detailed History)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -49,7 +49,7 @@
 
     <div class="flex justify-between items-center mb-4 no-print">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V17.1</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V17.2</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -57,8 +57,8 @@
                 <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์
             </div>
             <!-- History Button -->
-            <button onclick="openHistory()" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-200 hover:bg-indigo-100">
-                📜 ดูประวัติย้อนหลัง
+            <button onclick="openHistory()" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 flex items-center gap-1">
+                📜 ประวัติย้อนหลัง
             </button>
         </div>
     </div>
@@ -176,7 +176,7 @@
         </div>
     </div>
 
-    <!-- Result Modal -->
+    <!-- Result Modal (Printable) -->
     <div id="resultSection" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-slide-up max-h-[90vh] overflow-y-auto">
             <div class="bg-gray-800 p-3 text-white flex justify-between items-center sticky top-0 no-print">
@@ -290,7 +290,7 @@
         </div>
     </div>
 
-    <!-- History Modal -->
+    <!-- History Modal (Main) -->
     <div id="historySection" class="hidden fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-slide-up max-h-[85vh] flex flex-col">
             <div class="bg-indigo-700 p-3 text-white flex justify-between items-center sticky top-0">
@@ -298,7 +298,11 @@
                 <button onclick="document.getElementById('historySection').classList.add('hidden')" class="text-white text-xl">&times;</button>
             </div>
             <div class="p-4 flex-1 overflow-y-auto">
-                <div id="historyList" class="space-y-3"></div>
+                <div id="historyListContainer" class="space-y-3"></div>
+                <div id="historyDetailContainer" class="hidden">
+                    <button onclick="showHistoryList()" class="mb-3 text-xs text-indigo-600 flex items-center gap-1">⬅ กลับไปหน้ารายการ</button>
+                    <div id="historyDetailContent" class="space-y-3"></div>
+                </div>
                 <div id="emptyHistory" class="text-center text-gray-400 py-8 hidden">ยังไม่มีประวัติ</div>
             </div>
             <div class="p-3 bg-gray-100 text-center border-t">
@@ -384,11 +388,11 @@
                 staff: document.getElementById('staff_name').value,
                 profit: globalData.profit,
                 diff: globalData.diff,
-                data: globalData, // Save full data object
+                data: globalData,
                 timestamp: new Date().toLocaleString('th-TH')
             };
             
-            history.unshift(record); // Add to top
+            history.unshift(record); 
             localStorage.setItem('shop_history', JSON.stringify(history));
             
             const btn = document.getElementById('btnSaveHistory');
@@ -403,8 +407,16 @@
         }
 
         function openHistory() {
+            showHistoryList();
+            document.getElementById('historySection').classList.remove('hidden');
+        }
+
+        function showHistoryList() {
+            document.getElementById('historyListContainer').classList.remove('hidden');
+            document.getElementById('historyDetailContainer').classList.add('hidden');
+            
             const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
-            const listEl = document.getElementById('historyList');
+            const listEl = document.getElementById('historyListContainer');
             const emptyEl = document.getElementById('emptyHistory');
             
             listEl.innerHTML = '';
@@ -415,28 +427,92 @@
                 history.forEach((rec, index) => {
                     const colorClass = rec.diff == 0 ? 'text-green-600' : (rec.diff > 0 ? 'text-blue-600' : 'text-red-600');
                     const diffText = rec.diff == 0 ? 'ตรง' : (rec.diff > 0 ? `+${rec.diff}` : rec.diff);
-                    
+                    const d = new Date(rec.date);
+                    const dateFmt = d.toLocaleDateString('th-TH', {day:'numeric', month:'short'});
+
                     const div = document.createElement('div');
-                    div.className = "bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center";
+                    div.className = "bg-gray-50 p-3 rounded-lg border border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition";
+                    div.onclick = () => viewHistoryDetail(index);
                     div.innerHTML = `
                         <div>
-                            <div class="font-bold text-gray-800">${rec.date} <span class="text-xs font-normal text-gray-500">(${rec.shop})</span></div>
+                            <div class="font-bold text-gray-800">${dateFmt} <span class="text-xs font-normal text-gray-500">(${rec.shop || '-'})</span></div>
                             <div class="text-xs text-gray-500">กำไร: ${rec.profit.toLocaleString()} ฿ | สถานะ: <span class="${colorClass} font-bold">${diffText}</span></div>
                         </div>
-                        <button onclick="deleteHistory(${index})" class="text-red-400 hover:text-red-600 px-2">🗑️</button>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-300 text-xs">แตะดู ></span>
+                            <button onclick="deleteHistory(event, ${index})" class="p-1 bg-white border rounded text-red-400 hover:text-red-600 z-10">🗑️</button>
+                        </div>
                     `;
                     listEl.appendChild(div);
                 });
             }
-            document.getElementById('historySection').classList.remove('hidden');
         }
 
-        function deleteHistory(index) {
+        function viewHistoryDetail(index) {
+            const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
+            const rec = history[index];
+            const d = rec.data;
+            const container = document.getElementById('historyDetailContent');
+            
+            // Build Detail View
+            let statusColor = d.diff == 0 ? 'text-green-600' : (d.diff > 0 ? 'text-blue-600' : 'text-red-600');
+            let statusText = d.diff == 0 ? 'ยอดตรง' : (d.diff > 0 ? 'เงินเกิน' : 'เงินหาย');
+
+            let html = `
+                <div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100 mb-3">
+                    <h3 class="font-bold text-indigo-900 border-b border-indigo-200 pb-1 mb-2">สรุปการเงิน</h3>
+                    <div class="grid grid-cols-2 text-sm gap-2">
+                        <span class="text-gray-500">วันที่:</span> <span class="font-bold text-right">${new Date(rec.date).toLocaleDateString('th-TH')}</span>
+                        <span class="text-gray-500">สาขา:</span> <span class="text-right">${rec.shop || '-'}</span>
+                        <span class="text-gray-500">พนักงาน:</span> <span class="text-right">${rec.staff || '-'}</span>
+                        <span class="text-gray-500">เงินรับจริง:</span> <span class="font-bold text-right">${d.actual_rev.toLocaleString()}</span>
+                        <span class="text-gray-500">กำไรสุทธิ:</span> <span class="font-bold text-green-600 text-right text-lg">${d.profit.toLocaleString()} ฿</span>
+                        <span class="text-gray-500">สถานะ:</span> <span class="font-bold ${statusColor} text-right">${statusText} (${d.diff})</span>
+                    </div>
+                </div>
+
+                <div class="bg-red-50 p-3 rounded-lg border border-red-100 mb-3">
+                    <h3 class="font-bold text-red-900 border-b border-red-200 pb-1 mb-2">ต้นทุน (${d.costs.total.toLocaleString()})</h3>
+                    <div class="text-xs space-y-1 text-red-800">
+                        <div class="flex justify-between"><span>เกี๊ยว:</span> <span>${d.costs.dumplings.toLocaleString()}</span></div>
+                        <div class="flex justify-between"><span>BBQ:</span> <span>${d.costs.bbq.toLocaleString()}</span></div>
+                        <div class="flex justify-between"><span>Fixed:</span> <span>${d.costs.fixed.toLocaleString()}</span></div>
+                        <div class="flex justify-between"><span>Daily:</span> <span>${d.costs.daily.toLocaleString()}</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-100 mb-3">
+                    <h3 class="font-bold text-yellow-900 border-b border-yellow-200 pb-1 mb-2">ยอดขาย</h3>
+                    <div class="flex justify-between text-sm"><span>🥟 เกี๊ยวซ่า:</span> <span>${d.items.dumplings} ตัว</span></div>
+                    <div class="flex justify-between text-sm"><span>🍢 BBQ:</span> <span>${d.items.bbq} ไม้</span></div>
+                    <div class="text-xs text-gray-400 mt-1 text-right">(รวมขายแยก: ${d.items.individual || 0} ตัว)</div>
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <h3 class="font-bold text-blue-900 border-b border-blue-200 pb-1 mb-2">สต็อกคงเหลือ</h3>
+                    <div class="text-xs space-y-1 text-blue-800">
+                        ${d.remaining.map(r => `<div>${r}</div>`).join('')}
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            document.getElementById('historyListContainer').classList.add('hidden');
+            document.getElementById('historyDetailContainer').classList.remove('hidden');
+        }
+
+        function showHistoryList() {
+            document.getElementById('historyListContainer').classList.remove('hidden');
+            document.getElementById('historyDetailContainer').classList.add('hidden');
+        }
+
+        function deleteHistory(e, index) {
+            e.stopPropagation();
             if(!confirm('ลบรายการนี้?')) return;
             const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
             history.splice(index, 1);
             localStorage.setItem('shop_history', JSON.stringify(history));
-            openHistory(); // Refresh
+            showHistoryList(); // Refresh
         }
 
         // --- Standard Logic ---
@@ -645,7 +721,7 @@
             txt += `[สต็อกคงเหลือ]\n`;
             globalData.remaining.forEach(line => { txt += `- ${line}\n`; });
             txt += `==========================\n`;
-            txt += `Created by Smart Shop V17.1`;
+            txt += `Created by Smart Shop V17.2`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
