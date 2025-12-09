@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V19.0 (Cloud Sync)</title>
+    <title>ระบบปิดยอดร้าน V19.2 (Connected)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -51,7 +51,7 @@
 
     <div class="flex justify-between items-center mb-4 no-print">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V19.0</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V19.2</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -59,7 +59,7 @@
                 <span class="w-2 h-2 rounded-full bg-green-600 animate-pulse"></span> ออนไลน์
             </div>
             <button onclick="openHistory()" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 flex items-center gap-1">
-                📜 ประวัติ
+                📜 ประวัติในเครื่อง
             </button>
         </div>
     </div>
@@ -183,7 +183,7 @@
             <input type="password" id="apiKeyInput" class="w-full border p-2 rounded mb-3 text-sm" placeholder="วางรหัส AIza... ที่นี่">
             
             <p class="text-xs text-gray-500 mb-1">Google Script URL (สำหรับบันทึกชีต)</p>
-            <input type="text" id="scriptUrlInput" class="w-full border p-2 rounded mb-3 text-sm" placeholder="วางลิงก์ https://script.google.com/macros/s/.../exec">
+            <input type="text" id="scriptUrlInput" class="w-full border p-2 rounded mb-3 text-sm" placeholder="วางลิงก์ https://script.google.com/.../exec">
             
             <button onclick="saveApiKey()" class="w-full bg-gray-600 text-white py-1 rounded text-sm">บันทึกตั้งค่า</button>
             <p id="keyStatus" class="text-xs text-center mt-2 text-gray-400"></p>
@@ -365,6 +365,7 @@
                 let addBag = getVal(`${p.id}_add_bag`);
                 let addUnit = getVal(`${p.id}_add_unit`);
                 let addTotalBags = addBag + (addUnit / p.unit);
+                
                 let remainingBags = Math.max(0, whStockBags - addTotalBags);
                 let remainingValue = remainingBags * whCostPerBag;
                 document.getElementById(`wh_deduct_${p.id}`).innerText = addTotalBags > 0 ? addTotalBags.toFixed(2) : "0";
@@ -388,12 +389,12 @@
             });
             allInputs.forEach(id => data[id] = document.getElementById(id).value);
             data['fixed_cost_select'] = document.getElementById('fixed_cost_select').value;
-            localStorage.setItem('shop_v19_data', JSON.stringify(data));
+            localStorage.setItem('shop_v19_2_data', JSON.stringify(data));
             document.getElementById('saveStatus').innerText = "✅ บันทึก Auto " + new Date().toLocaleTimeString();
         }
 
         function loadAutoSave() {
-            const saved = localStorage.getItem('shop_v19_data');
+            const saved = localStorage.getItem('shop_v19_2_data');
             if(saved) {
                 const data = JSON.parse(saved);
                 products.forEach(p => {
@@ -415,14 +416,16 @@
 
         function clearAllData() {
             if(confirm('จะล้างข้อมูลทั้งหมด?')) {
-                localStorage.removeItem('shop_v19_data');
+                localStorage.removeItem('shop_v19_2_data');
                 localStorage.removeItem('shop_history');
                 location.reload();
             }
         }
 
         function getApiKey() { return localStorage.getItem('gemini_api_key'); }
-        function getScriptUrl() { return localStorage.getItem('google_script_url'); }
+        function getScriptUrl() { 
+            return localStorage.getItem('google_script_url'); 
+        }
         
         function saveApiKey() {
             const key = document.getElementById('apiKeyInput').value.trim();
@@ -727,7 +730,7 @@
                 txt += "ไม่มีข้อมูลคลังสินค้า\n";
             }
             txt += `========================================\n`;
-            txt += `Created by Smart Shop V19.0`;
+            txt += `Created by Smart Shop V19.2`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
