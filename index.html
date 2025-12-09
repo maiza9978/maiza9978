@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V16.1 (Adjust Cash)</title>
+    <title>ระบบปิดยอดร้าน V16.2 (Cost Breakdown)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -38,7 +38,7 @@
 
     <div class="flex justify-between items-center mb-4">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V16.1</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V16.2</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -199,6 +199,20 @@
                 <div class="text-center bg-green-50 p-3 rounded-lg border border-green-200">
                     <p class="text-green-800 font-bold">💰 กำไรสุทธิ</p>
                     <div id="res_profit" class="text-3xl font-bold text-green-600">0</div>
+                </div>
+
+                <!-- Cost Summary (NEW) -->
+                <div class="bg-red-50 p-3 rounded-lg border border-red-200 mt-2">
+                    <p class="font-bold text-red-800 mb-2 border-b border-red-200 pb-1 flex justify-between">
+                        <span>📉 สรุปต้นทุนรวม:</span>
+                        <span id="res_total_cost">0 ฿</span>
+                    </p>
+                    <div class="text-xs text-red-700 space-y-1">
+                        <div class="flex justify-between"><span>- วัตถุดิบเกี๊ยว (6.5บ.):</span> <span><span id="res_cost_dump">0</span> ฿</span></div>
+                        <div class="flex justify-between"><span>- วัตถุดิบ BBQ (24บ.):</span> <span><span id="res_cost_bbq">0</span> ฿</span></div>
+                        <div class="flex justify-between"><span>- ค่าที่+แรง (Fixed):</span> <span><span id="res_cost_fixed">0</span> ฿</span></div>
+                        <div class="flex justify-between"><span>- จ่ายรายวัน (Daily):</span> <span><span id="res_cost_daily">0</span> ฿</span></div>
+                    </div>
                 </div>
 
                 <!-- Breakdown Sales -->
@@ -427,19 +441,18 @@
             let expected = dump_sales_val + bbq_sales_val;
 
             // Logic V16.1: Adjust Cash instead of Expected Revenue
-            // Surcharge 150 (+20): Means Cash is higher than stock value. Subtract to match stock.
-            // Surcharge 290 (+30): Means Cash is higher. Subtract.
-            // Discount 250 (-10): Means Cash is lower than stock. Add back to match stock.
-            // Individual (-3): Means Cash is lower. Add back to match stock.
-            
             let surcharge = (set150 * 20) + (set290 * 30);
             let discount = (set250 * 10) + (individual10 * 3);
             
             let adjusted_actual = actual_rev - surcharge + discount;
 
-            let cost = ((s+c+p+v) * 6.5) + ((bb+b) * 24);
+            // Cost Calculation (New Section)
+            let costDumplings = (s+c+p+v) * 6.5;
+            let costBBQ = (bb+b) * 24;
             let fixed = document.getElementById('fixed_cost_select').value === 'custom' ? getVal('fixed_cost_custom') : parseFloat(document.getElementById('fixed_cost_select').value);
-            let profit = actual_rev - cost - fixed - daily;
+            let totalCost = costDumplings + costBBQ + fixed + daily;
+
+            let profit = actual_rev - totalCost;
             
             let totalDumplingsSold = s + c + p + v;
             let totalBBQSold = bb + b;
@@ -469,7 +482,8 @@
                 diff: adjusted_actual - expected, 
                 items: {s,c,p,v,bb,b, dumplings: totalDumplingsSold, bbq: totalBBQSold, individual: individual10},
                 remaining: remainingItems,
-                adj_val: (discount - surcharge) // Net adjustment for display
+                adj_val: (discount - surcharge),
+                costs: { dumplings: costDumplings, bbq: costBBQ, fixed: fixed, daily: daily, total: totalCost }
             };
             
             document.getElementById('resultSection').classList.remove('hidden');
@@ -478,6 +492,13 @@
             document.getElementById('res_diff').innerText = (adjusted_actual - expected).toLocaleString();
             document.getElementById('res_profit').innerText = profit.toLocaleString() + " ฿";
             
+            // Cost Summary Display
+            document.getElementById('res_total_cost').innerText = totalCost.toLocaleString() + " ฿";
+            document.getElementById('res_cost_dump').innerText = costDumplings.toLocaleString();
+            document.getElementById('res_cost_bbq').innerText = costBBQ.toLocaleString();
+            document.getElementById('res_cost_fixed').innerText = fixed.toLocaleString();
+            document.getElementById('res_cost_daily').innerText = daily.toLocaleString();
+
             document.getElementById('res_raw_cash').innerText = actual_rev.toLocaleString();
             document.getElementById('res_adj_val').innerText = (globalData.adj_val >= 0 ? "+" : "") + globalData.adj_val.toLocaleString();
             
@@ -526,6 +547,12 @@
             txt += `สถานะ: ${document.getElementById('audit_msg').innerText} (${document.getElementById('res_diff').innerText})\n`;
             txt += `(ปรับปรุงยอดเงิน: ${document.getElementById('res_adj_val').innerText})\n`;
             txt += `--------------------------\n`;
+            txt += `[ต้นทุนรวม: ${globalData.costs.total.toLocaleString()} บาท]\n`;
+            txt += `- วัตถุดิบเกี๊ยว: ${globalData.costs.dumplings.toLocaleString()}\n`;
+            txt += `- วัตถุดิบ BBQ: ${globalData.costs.bbq.toLocaleString()}\n`;
+            txt += `- ค่าที่+แรง: ${globalData.costs.fixed.toLocaleString()}\n`;
+            txt += `- จ่ายรายวัน: ${globalData.costs.daily.toLocaleString()}\n`;
+            txt += `--------------------------\n`;
             txt += `[ยอดขาย]\n`;
             txt += `🥟 เกี๊ยวซ่าขาย: ${globalData.items.dumplings} ตัว\n`;
             txt += `   (รวมขายแยก: ${globalData.items.individual} ตัว)\n`;
@@ -534,7 +561,7 @@
             txt += `[สต็อกคงเหลือ]\n`;
             globalData.remaining.forEach(line => { txt += `- ${line}\n`; });
             txt += `==========================\n`;
-            txt += `Created by Smart Shop V16.1`;
+            txt += `Created by Smart Shop V16.2`;
 
             const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
             const link = document.createElement("a");
