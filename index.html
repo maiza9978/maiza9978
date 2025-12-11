@@ -778,37 +778,82 @@
             calculateProfit(); // Ensure data is fresh
             
             const date = document.getElementById('record_date').value;
-            const shop = document.getElementById('shop_name').value || "Unknown";
+            const shop = document.getElementById('shop_name').value || "ไม่ระบุ";
             const staff = document.getElementById('staff_name').value || "-";
             
-            let content = `=== สรุปยอดร้าน ${shop} ===\n`;
-            content += `วันที่: ${date}\n`;
-            content += `พนักงาน: ${staff}\n`;
-            content += `----------------------------\n`;
-            content += `[สถานะการเงิน]\n`;
-            content += `ยอดขายจริง (เงินสด+โอน): ${globalData.actual_rev.toLocaleString()} บาท\n`;
-            content += `กำไรสุทธิ: ${globalData.profit.toLocaleString()} บาท\n`;
-            content += `ผลตรวจสอบ: ${globalData.statusText} (${globalData.diff > 0 ? '+' : ''}${globalData.diff})\n`;
-            content += `----------------------------\n`;
-            content += `[ต้นทุน]\n`;
-            content += `รวมต้นทุนทั้งหมด: ${globalData.costs.total.toLocaleString()} บาท\n`;
-            content += `----------------------------\n`;
-            content += `[สต็อกสินค้า]\n`;
-            content += `ใช้เกี๊ยวไป: ${globalData.items.usage_dump} ถุง\n`;
-            content += `ใช้ BBQ ไป: ${globalData.items.usage_bbq} ถุง\n`;
-            
+            // Helper to get raw input values for stock
+            const getStockStr = (id) => {
+                const p_bag = document.getElementById(`${id}_prev_bag`).value || 0;
+                const p_unit = document.getElementById(`${id}_prev_unit`).value || 0;
+                const a_bag = document.getElementById(`${id}_add_bag`).value || 0;
+                const a_unit = document.getElementById(`${id}_add_unit`).value || 0;
+                const e_bag = document.getElementById(`${id}_end_bag`).value || 0;
+                const e_unit = document.getElementById(`${id}_end_unit`).value || 0;
+                return `ยกมา ${p_bag}.${p_unit} + เติม ${a_bag}.${a_unit} - เหลือ ${e_bag}.${e_unit}`;
+            };
+
+            let txt = `=== รายงานสรุปปิดยอด (Full Report) ===\n`;
+            txt += `วันที่: ${date}\n`;
+            txt += `สาขา: ${shop} | พนักงาน: ${staff}\n`;
+            txt += `พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}\n`;
+            txt += `========================================\n\n`;
+
+            txt += `[💰 สรุปการเงิน]\n`;
+            txt += `+ เงินสดในลิ้นชัก: ${getVal('cash').toLocaleString()} บ.\n`;
+            txt += `+ ยอดโอน: ${getVal('transfer').toLocaleString()} บ.\n`;
+            txt += `+ จ่ายรายวัน (หักออก): ${getVal('daily_expense').toLocaleString()} บ.\n`;
+            txt += `----------------------------------------\n`;
+            txt += `> ยอดเงินรับจริง (Net Cash): ${globalData.actual_rev.toLocaleString()} บ.\n`;
+            txt += `> ยอดที่ควรได้ (Expected): ${parseFloat(document.getElementById('res_expected').innerText.replace(/,/g,'')).toLocaleString()} บ.\n`;
+            txt += `> ผลต่าง (Diff): ${globalData.diff > 0 ? '+' : ''}${globalData.diff} บ. (${globalData.statusText})\n`;
+            txt += `> กำไรสุทธิ (Profit): ${globalData.profit.toLocaleString()} บ.\n`;
+            txt += `========================================\n\n`;
+
+            txt += `[📉 รายละเอียดต้นทุน]\n`;
+            txt += `- ทุนวัตถุดิบเกี๊ยว: ${globalData.costs.goods_dump.toLocaleString()} บ.\n`;
+            txt += `- ทุนวัตถุดิบ BBQ: ${globalData.costs.goods_bbq.toLocaleString()} บ.\n`;
+            txt += `- ค่าที่+แรง (Fixed): ${globalData.costs.fixed.toLocaleString()} บ.\n`;
+            txt += `- จ่ายรายวัน (Daily): ${globalData.costs.daily.toLocaleString()} บ.\n`;
+            txt += `> รวมต้นทุนทั้งหมด: ${globalData.costs.total.toLocaleString()} บ.\n`;
+            txt += `========================================\n\n`;
+
+            txt += `[📊 สถิติการขาย & ของเสีย]\n`;
+            txt += `🥟 เกี๊ยวรวม: ใช้ ${globalData.items.usage_dump} --> ขาย ${globalData.items.sold_dump} | เสีย ${globalData.items.waste_dump}\n`;
+            txt += `🍢 BBQรวม:  ใช้ ${globalData.items.usage_bbq} --> ขาย ${globalData.items.sold_bbq} | เสีย ${globalData.items.waste_bbq}\n`;
+            txt += `\n[รายการปรับยอด Set/โปรโมชั่น]\n`;
+            txt += `- ขายแยก (10บ.): ${getVal('individual_10_count')} ตัว\n`;
+            txt += `- Set 150: ${getVal('set150_count')} ชุด\n`;
+            txt += `- Set 250: ${getVal('set250_count')} ชุด\n`;
+            txt += `- Set 290: ${getVal('set290_count')} ชุด\n`;
+            txt += `========================================\n\n`;
+
+            txt += `[📦 รายละเอียดสต็อก (รายการ)]\n`;
+            products.forEach(p => {
+                // Calculate usage for this item specifically
+                // Note: globalData.items.s/c/p etc holds the usage count
+                let usage = globalData.items[p.id]; 
+                txt += `${p.name}: ${getStockStr(p.id)} = ใช้ ${usage}\n`;
+            });
+            txt += `========================================\n\n`;
+
             if(globalData.isWarehouseActive) {
-                 content += `----------------------------\n`;
-                 content += `[คลังสินค้า]\n`;
-                 content += `มูลค่าคงเหลือ: ${globalData.warehouse.totalVal.toLocaleString()} บาท\n`;
+                txt += `[🏭 คลังสินค้า (Warehouse)]\n`;
+                if(globalData.warehouse.details.length > 0) {
+                    globalData.warehouse.details.forEach(w => {
+                        txt += `- ${w.name}: เหลือ ${w.rem.toFixed(2)} ถุง (${w.val.toLocaleString()} บ.)\n`;
+                    });
+                    txt += `> รวมมูลค่าคงเหลือ: ${globalData.warehouse.totalVal.toLocaleString()} บ.\n`;
+                } else {
+                    txt += `- ไม่มีการบันทึกคลังสินค้า\n`;
+                }
+                txt += `========================================\n`;
             }
 
-            // FIX: Add BOM (\uFEFF) so Excel/Notepad recognizes Thai characters
-            const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8' });
+            const blob = new Blob(['\uFEFF' + txt], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `Report_${shop}_${date}.txt`;
+            a.download = `FullReport_${shop}_${date}.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
