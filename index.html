@@ -670,6 +670,7 @@
                     let addBag = getVal(`${p.id}_add_bag`);
                     let addUnit = getVal(`${p.id}_add_unit`);
                     let addTotalBags = addBag + (addUnit / p.unit);
+                    
                     let remainingBags = Math.max(0, whStockBags - addTotalBags);
                     let remainingValue = remainingBags * whCostPerBag;
                     whDetails.push({ name: p.name, rem: remainingBags, cost: whCostPerBag, val: remainingValue });
@@ -767,8 +768,198 @@
                 box.className = "p-3 rounded-lg border-2 audit-fail"; 
                 document.getElementById('res_diff').className = "text-xl font-bold text-red-700";
             }
+        }
 
-            document.getElementById('item_breakdown_list').innerHTML = ``; 
+        // ============================================
+        // 🚀 NEW FUNCTIONS ADDED FOR EXPORT & HISTORY
+        // ============================================
+
+        function exportReport() {
+            calculateProfit(); // Ensure data is fresh
+            
+            const date = document.getElementById('record_date').value;
+            const shop = document.getElementById('shop_name').value || "Unknown";
+            const staff = document.getElementById('staff_name').value || "-";
+            
+            let content = `=== สรุปยอดร้าน ${shop} ===\n`;
+            content += `วันที่: ${date}\n`;
+            content += `พนักงาน: ${staff}\n`;
+            content += `----------------------------\n`;
+            content += `[สถานะการเงิน]\n`;
+            content += `ยอดขายจริง (เงินสด+โอน): ${globalData.actual_rev.toLocaleString()} บาท\n`;
+            content += `กำไรสุทธิ: ${globalData.profit.toLocaleString()} บาท\n`;
+            content += `ผลตรวจสอบ: ${globalData.statusText} (${globalData.diff > 0 ? '+' : ''}${globalData.diff})\n`;
+            content += `----------------------------\n`;
+            content += `[ต้นทุน]\n`;
+            content += `รวมต้นทุนทั้งหมด: ${globalData.costs.total.toLocaleString()} บาท\n`;
+            content += `----------------------------\n`;
+            content += `[สต็อกสินค้า]\n`;
+            content += `ใช้เกี๊ยวไป: ${globalData.items.usage_dump} ถุง\n`;
+            content += `ใช้ BBQ ไป: ${globalData.items.usage_bbq} ถุง\n`;
+            
+            if(globalData.isWarehouseActive) {
+                 content += `----------------------------\n`;
+                 content += `[คลังสินค้า]\n`;
+                 content += `มูลค่าคงเหลือ: ${globalData.warehouse.totalVal.toLocaleString()} บาท\n`;
+            }
+
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Report_${shop}_${date}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        function saveToHistory() {
+            calculateProfit(); // Update globalData
+            const date = document.getElementById('record_date').value;
+            const shop = document.getElementById('shop_name').value || "สาขาไม่ระบุ";
+            const staff = document.getElementById('staff_name').value || "-";
+            
+            let history = JSON.parse(localStorage.getItem('shop_history') || "[]");
+            
+            // Remove old entry for same date/shop to prevent dupes
+            history = history.filter(h => !(h.date === date && h.shop === shop));
+            
+            const newEntry = {
+                id: Date.now(),
+                date: date,
+                shop: shop,
+                staff: staff,
+                data: globalData,
+                timestamp: new Date().toLocaleString('th-TH')
+            };
+            
+            history.unshift(newEntry); // Add to top
+            if(history.length > 30) history.pop(); // Keep last 30
+            
+            localStorage.setItem('shop_history', JSON.stringify(history));
+            
+            const btn = document.getElementById('btnSaveHistory');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "✅ บันทึกแล้ว!";
+            btn.classList.remove('bg-emerald-600');
+            btn.classList.add('bg-gray-500');
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.add('bg-emerald-600');
+                btn.classList.remove('bg-gray-500');
+            }, 2000);
+        }
+
+        function openHistory() {
+            document.getElementById('historySection').classList.remove('hidden');
+            showHistoryList();
+        }
+
+        function showHistoryList() {
+            document.getElementById('historyListContainer').classList.remove('hidden');
+            document.getElementById('historyDetailContainer').classList.add('hidden');
+            
+            const history = JSON.parse(localStorage.getItem('shop_history') || "[]");
+            const container = document.getElementById('historyListContainer');
+            const empty = document.getElementById('emptyHistory');
+            
+            container.innerHTML = "";
+            
+            if(history.length === 0) {
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            
+            history.forEach(h => {
+                const div = document.createElement('div');
+                div.className = "bg-gray-50 p-3 rounded border border-gray-200 cursor-pointer hover:bg-indigo-50 transition";
+                div.onclick = () => showHistoryDetail(h);
+                
+                let statusColor = h.data.diff === 0 ? "text-green-600" : "text-red-500";
+                
+                div.innerHTML = `
+                    <div class="flex justify-between font-bold text-sm">
+                        <span>${h.date}</span>
+                        <span class="text-indigo-700">${h.data.profit.toLocaleString()} ฿</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>${h.shop} (${h.staff})</span>
+                        <span class="${statusColor}">${h.data.statusText}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function showHistoryDetail(h) {
+            document.getElementById('historyListContainer').classList.add('hidden');
+            document.getElementById('historyDetailContainer').classList.remove('hidden');
+            
+            const content = document.getElementById('historyDetailContent');
+            content.innerHTML = `
+                <div class="bg-white p-3 border rounded shadow-sm text-sm">
+                    <h3 class="font-bold text-lg text-center border-b pb-2 mb-2">${h.shop}</h3>
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <div>📅 วันที่: ${h.date}</div>
+                        <div>👤 พนักงาน: ${h.staff}</div>
+                    </div>
+                    <div class="bg-gray-100 p-2 rounded mb-2">
+                         <div class="flex justify-between font-bold"><span>💰 กำไรสุทธิ:</span> <span class="text-green-600">${h.data.profit.toLocaleString()}</span></div>
+                         <div class="flex justify-between text-xs"><span>💵 ยอดขายจริง:</span> <span>${h.data.actual_rev.toLocaleString()}</span></div>
+                         <div class="flex justify-between text-xs"><span>📉 ต้นทุนรวม:</span> <span>${h.data.costs.total.toLocaleString()}</span></div>
+                    </div>
+                    <div class="text-xs space-y-1">
+                        <p><strong>สต็อก:</strong> ใช้เกี๊ยว ${h.data.items.usage_dump}, ใช้ BBQ ${h.data.items.usage_bbq}</p>
+                        <p><strong>ผลตรวจเงิน:</strong> ${h.data.statusText} (${h.data.diff})</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function sendToGoogleSheet() {
+            calculateProfit();
+            const btn = document.getElementById('btnSendSheet');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "⏳ กำลังส่ง...";
+            btn.disabled = true;
+
+            const payload = {
+                date: document.getElementById('record_date').value,
+                shop: document.getElementById('shop_name').value,
+                staff: document.getElementById('staff_name').value,
+                profit: globalData.profit,
+                actual_revenue: globalData.actual_rev,
+                total_cost: globalData.costs.total,
+                diff: globalData.diff,
+                status: globalData.statusText,
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                const scriptUrl = getScriptUrl();
+                // Note: Google Apps Script needs 'no-cors' for simple POSTs from client-side usually, 
+                // but that makes response opaque. For now we assume fire-and-forget or standard fetch.
+                await fetch(scriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                alert("ส่งข้อมูลเรียบร้อย!");
+                btn.innerHTML = "✅ ส่งสำเร็จ";
+            } catch (e) {
+                console.error(e);
+                alert("ส่งไม่สำเร็จ: " + e.message);
+                btn.innerHTML = "❌ ล้มเหลว";
+            } finally {
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }, 3000);
+            }
         }
 
         async function extractDataFromImage() {
@@ -833,7 +1024,7 @@
                 const data = await res.json();
                 
                 if(data.error) {
-                     throw new Error(data.error.message);
+                      throw new Error(data.error.message);
                 }
                 
                 let txt = data.candidates[0].content.parts[0].text;
@@ -874,10 +1065,41 @@
         }
 
         async function askGemini() {
-           // Same Gemini Logic
-           const apiKey = getApiKey();
-           if (!apiKey) return alert("กรุณาใส่ API Key");
-           // ...
+            const apiKey = getApiKey();
+            if (!apiKey) return alert("กรุณาใส่ API Key");
+            
+            document.getElementById('aiLoading').classList.remove('hidden');
+            document.getElementById('aiResult').classList.add('hidden');
+            document.getElementById('btnAskAI').classList.add('hidden');
+
+            try {
+                calculateProfit(); // Update Data
+                
+                const prompt = `
+                    วิเคราะห์ผลประกอบการร้านค้าวันนี้แบบสั้นๆ:
+                    ข้อมูล: ${JSON.stringify(globalData)}
+                    
+                    ขอคำแนะนำสั้นๆ 3 ข้อ ถ้ากำไรน้อยหรือมีของเสียเยอะ ให้เตือน
+                `;
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                const data = await res.json();
+                const text = data.candidates[0].content.parts[0].text;
+                
+                document.getElementById('aiResult').innerHTML = marked.parse(text);
+                document.getElementById('aiResult').classList.remove('hidden');
+
+            } catch(e) {
+                alert("AI Error: " + e.message);
+            } finally {
+                document.getElementById('aiLoading').classList.add('hidden');
+                document.getElementById('btnAskAI').classList.remove('hidden');
+            }
         }
 
         loadAutoSave();
