@@ -803,7 +803,8 @@
                  content += `มูลค่าคงเหลือ: ${globalData.warehouse.totalVal.toLocaleString()} บาท\n`;
             }
 
-            const blob = new Blob([content], { type: 'text/plain' });
+            // FIX: Add BOM (\uFEFF) so Excel/Notepad recognizes Thai characters
+            const blob = new Blob(['\uFEFF' + content], { type: 'text/plain;charset=utf-8' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -939,8 +940,6 @@
 
             try {
                 const scriptUrl = getScriptUrl();
-                // Note: Google Apps Script needs 'no-cors' for simple POSTs from client-side usually, 
-                // but that makes response opaque. For now we assume fire-and-forget or standard fetch.
                 await fetch(scriptUrl, {
                     method: 'POST',
                     mode: 'no-cors', 
