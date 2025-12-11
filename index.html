@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบปิดยอดร้าน V22.1 (AI Activated)</title>
+    <title>ระบบปิดยอดร้าน V22.2 (AI Real Mode)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -55,7 +55,7 @@
 
     <div class="flex justify-between items-center mb-4 no-print">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V22.1</h1>
+            <h1 class="text-2xl font-bold text-slate-800">🥟 ปิดยอดร้าน V22.2</h1>
             <p id="saveStatus" class="text-xs text-gray-400">ระบบจำค่าล่าสุดให้อัตโนมัติ</p>
         </div>
         <div class="flex flex-col items-end gap-1">
@@ -113,7 +113,7 @@
     <!-- AI Button -->
     <div id="aiSection" class="mb-4 no-print">
         <button id="btnAutoFill" onclick="extractDataFromImage()" class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold py-3 rounded-xl text-sm shadow-md hover:opacity-90 transition flex items-center justify-center gap-2 transform active:scale-95">
-            ✨ ให้ AI Gemini ช่วยอ่านตัวเลข
+            ✨ ให้ AI Gemini ช่วยอ่านตัวเลข (ของจริง)
         </button>
         <div id="fillLoading" class="hidden text-center py-4 bg-white rounded-xl border border-indigo-100">
             <div class="loading-spinner"></div>
@@ -454,12 +454,12 @@
             data['fixed_cost_select'] = document.getElementById('fixed_cost_select').value;
             data['calc_warehouse_toggle'] = document.getElementById('calc_warehouse_toggle').checked;
 
-            localStorage.setItem('shop_v21_6_data', JSON.stringify(data));
+            localStorage.setItem('shop_v22_1_data', JSON.stringify(data));
             document.getElementById('saveStatus').innerText = "✅ บันทึก Auto " + new Date().toLocaleTimeString();
         }
 
         function loadAutoSave() {
-            const saved = localStorage.getItem('shop_v21_6_data');
+            const saved = localStorage.getItem('shop_v22_1_data');
             if(saved) {
                 const data = JSON.parse(saved);
                 products.forEach(p => {
@@ -485,7 +485,7 @@
 
         function clearAllData() {
             if(confirm('จะล้างข้อมูลทั้งหมด?')) {
-                localStorage.removeItem('shop_v21_6_data');
+                localStorage.removeItem('shop_v22_1_data');
                 localStorage.removeItem('shop_history');
                 location.reload();
             }
@@ -617,8 +617,6 @@
 
             let fixed = document.getElementById('fixed_cost_select').value === 'custom' ? getVal('fixed_cost_custom') : parseFloat(document.getElementById('fixed_cost_select').value);
             
-            // LOGIC UPDATE V21.0
-            // 1. Calculate Total Usage from Stock (Sold + Waste)
             let s = calculateStock('s', 24);
             let c = calculateStock('c', 32);
             let p = calculateStock('p', 32);
@@ -629,23 +627,18 @@
             let totalUsageDump = s + c + p + v;
             let totalUsageBBQ = bb + b;
 
-            // 2. Get Waste
             let wasteDump = getVal('waste_dumpling');
             let wasteBBQ = getVal('waste_bbq');
 
-            // 3. Calculate Net Sold (For Sales Revenue)
             let netSoldDump = Math.max(0, totalUsageDump - wasteDump);
             let netSoldBBQ = Math.max(0, totalUsageBBQ - wasteBBQ);
 
-            // 4. Revenue Calculation based on Net Sold
             let individual10 = getVal('individual_10_count');
             let set150 = getVal('set150_count'), set290 = getVal('set290_count'), set250 = getVal('set250_count');
 
-            // Base Revenue
             let revenueDump = netSoldDump * 13;
             let revenueBBQ = netSoldBBQ * 50;
 
-            // Adjustments
             let adj_set250 = set250 * -10;
             let adj_set150 = set150 * 20;
             let adj_set290 = set290 * 30;
@@ -654,18 +647,16 @@
 
             let expected = revenueDump + revenueBBQ + adjustment;
 
-            // 5. Cost Calculation based on Total Usage (Includes Waste)
             let costGoodsDump = totalUsageDump * 6.5;
             let costGoodsBBQ = totalUsageBBQ * 24;
             let totalCostAll = costGoodsDump + costGoodsBBQ + fixed + daily;
 
             let profit = actual_rev - totalCostAll;
-            let diff = actual_rev - expected; // Check Money against Expected Revenue
+            let diff = actual_rev - expected; 
 
             let statusText = "ยอดตรง";
             if (Math.abs(diff) >= 50) statusText = diff > 0 ? "เงินเกิน" : "เงินหาย";
 
-            // Warehouse Calculation
             let totalWhValue = 0;
             let whDetails = [];
             let whReportList = "";
@@ -696,8 +687,7 @@
                 document.getElementById('cost_summary_box').classList.remove('hidden');
 
             } else {
-                // Simple Logic (No Stock)
-                profit = actual_rev - totalCostAll; // Still use total cost calculated but usage will be 0 if not input
+                profit = actual_rev - totalCostAll; 
                 statusText = "ไม่ได้นับสต็อก";
                 document.getElementById('wh_summary_box').classList.add('hidden');
                 document.getElementById('cost_summary_box').classList.remove('hidden');
@@ -724,7 +714,6 @@
             
             document.getElementById('resultSection').classList.remove('hidden');
             
-            // Use safeSetText everywhere
             safeSetText('res_expected', expected.toLocaleString());
             safeSetText('res_actual', actual_rev.toLocaleString());
             safeSetText('res_diff', diff.toLocaleString());
@@ -778,191 +767,110 @@
                 box.className = "p-3 rounded-lg border-2 audit-fail"; 
                 document.getElementById('res_diff').className = "text-xl font-bold text-red-700";
             }
-        }
 
-        function saveToHistory() {
-             if(!globalData.profit) return alert("คำนวณก่อนครับ");
-            const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
-            const record = {
-                id: Date.now(),
-                date: document.getElementById('record_date').value,
-                shop: document.getElementById('shop_name').value,
-                staff: document.getElementById('staff_name').value,
-                profit: globalData.profit,
-                diff: globalData.diff,
-                data: globalData,
-                timestamp: new Date().toLocaleString('th-TH')
-            };
-            history.unshift(record); 
-            localStorage.setItem('shop_history', JSON.stringify(history));
-            const btn = document.getElementById('btnSaveHistory');
-            btn.innerText = "✅ บันทึกแล้ว!";
-            setTimeout(() => btn.innerText = "💾 บันทึกยอดลงประวัติ (Local)", 2000);
-        }
-
-        function openHistory() {
-            document.getElementById('historyListContainer').classList.remove('hidden');
-            document.getElementById('historyDetailContainer').classList.add('hidden');
-            document.getElementById('historySection').classList.remove('hidden');
-            const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
-            const listEl = document.getElementById('historyListContainer');
-            listEl.innerHTML = history.length ? '' : '<div class="text-center text-gray-400 py-4">ไม่มีประวัติ</div>';
-            history.forEach((rec, index) => {
-                const color = rec.diff == 0 ? 'text-green-600' : 'text-red-600';
-                listEl.innerHTML += `
-                    <div class="bg-gray-50 p-3 rounded-lg border flex justify-between items-center" onclick="viewHistoryDetail(${index})">
-                        <div>
-                            <div class="font-bold">${new Date(rec.date).toLocaleDateString('th-TH')}</div>
-                            <div class="text-xs">กำไร: ${rec.profit.toLocaleString()} | สถานะ: <span class="${color}">${rec.diff}</span></div>
-                        </div>
-                        <button onclick="deleteHistory(event, ${index})" class="text-red-500">🗑️</button>
-                    </div>`;
-            });
-        }
-        function viewHistoryDetail(index) {
-            const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
-            const d = history[index].data;
-            const whHtml = (d.warehouse && d.warehouse.html) ? d.warehouse.html : 'ไม่มีข้อมูล';
-            document.getElementById('historyDetailContent').innerHTML = `
-                <div class="bg-white p-2 rounded border">
-                    <div class="font-bold text-center border-b pb-1">สรุปวันที่ ${new Date(history[index].date).toLocaleDateString('th-TH')}</div>
-                    <div class="flex justify-between mt-2"><span>กำไร:</span> <span class="font-bold text-green-600">${d.profit.toLocaleString()}</span></div>
-                    <div class="flex justify-between"><span>สถานะเงิน:</span> <span>${d.diff}</span></div>
-                    ${d.isWarehouseActive ? `<div class="mt-2 font-bold text-xs text-gray-500">คลังคงเหลือ:</div>
-                    <div class="text-xs ml-2">${whHtml}</div>` : '<div class="text-center text-gray-400 mt-2">- ไม่ได้คำนวณคลัง -</div>'}
-                </div>
-            `;
-            document.getElementById('historyListContainer').classList.add('hidden');
-            document.getElementById('historyDetailContainer').classList.remove('hidden');
-        }
-        function showHistoryList() {
-            document.getElementById('historyListContainer').classList.remove('hidden');
-            document.getElementById('historyDetailContainer').classList.add('hidden');
-        }
-        function deleteHistory(e, index) {
-            e.stopPropagation();
-            if(!confirm('ลบ?')) return;
-            const history = JSON.parse(localStorage.getItem('shop_history') || '[]');
-            history.splice(index, 1);
-            localStorage.setItem('shop_history', JSON.stringify(history));
-            openHistory();
-        }
-
-        function exportReport() {
-            if (!globalData.profit) return alert("กรุณากดคำนวณก่อนครับ");
-            const d = new Date(document.getElementById('record_date').value);
-            const dateStr = d.toLocaleDateString('th-TH');
-            const shopName = document.getElementById('shop_name').value || "ไม่ระบุ";
-            const staffName = document.getElementById('staff_name').value || "ไม่ระบุ";
-            
-            let txt = `========================================\n`;
-            txt += `      รายงานปิดยอดร้าน (V21.6)      \n`;
-            txt += `========================================\n`;
-            txt += `วันที่: ${dateStr}\n`;
-            txt += `สาขา: ${shopName} | พนักงาน: ${staffName}\n`;
-            txt += `----------------------------------------\n`;
-            
-            txt += `[สรุปการเงิน]\n`;
-            txt += `💰 เงินรับจริง (Cash): ${globalData.actual_rev.toLocaleString()} บาท\n`;
-            txt += `   (เฉพาะเงินสด: ${getVal('cash').toLocaleString()} บาท)\n`; 
-            txt += `📉 ต้นทุนรวม (Cost):   ${globalData.costs.total.toLocaleString()} บาท\n`;
-            txt += `✅ กำไรสุทธิ (Profit): ${globalData.profit.toLocaleString()} บาท\n`;
-            txt += `สถานะเงิน: ${globalData.statusText} (${globalData.diff.toLocaleString()})\n`;
-            
-            txt += `----------------------------------------\n`;
-            txt += `[รายละเอียดสินค้า]\n`;
-            txt += `🥟 เกี๊ยวซ่า:\n`;
-            txt += `   - ขายจริง: ${globalData.items.sold_dump} ตัว\n`;
-            txt += `   - เสียทิ้ง: ${globalData.items.waste_dump} ตัว\n`;
-            txt += `   - รวมใช้ไป: ${globalData.items.usage_dump} ตัว\n`;
-            txt += `🍢 บาร์บีคิว:\n`;
-            txt += `   - ขายจริง: ${globalData.items.sold_bbq} ไม้\n`;
-            txt += `   - เสียทิ้ง: ${globalData.items.waste_bbq} ไม้\n`;
-            txt += `   - รวมใช้ไป: ${globalData.items.usage_bbq} ไม้\n`;
-            
-            if (globalData.isWarehouseActive) {
-                txt += `----------------------------------------\n`;
-                txt += `[สถานะคลังสินค้าคงเหลือ]\n`;
-                if(globalData.warehouse && globalData.warehouse.details) {
-                    globalData.warehouse.details.forEach(item => {
-                        txt += `- ${item.name}: ${item.rem.toFixed(2)} ถุง (ทุน ${item.cost}) = ${item.val.toLocaleString()} บ.\n`;
-                    });
-                    txt += `\n📦 มูลค่าสินค้าในคลังรวม: ${globalData.warehouse.totalVal.toLocaleString()} บาท\n`;
-                }
-            } else {
-                txt += `\n* ไม่ได้คำนวณคลังสินค้าในรอบนี้ *\n`;
-            }
-
-            txt += `========================================\n`;
-            txt += `Created by Smart Shop V21.6`;
-
-            const blob = new Blob(["\uFEFF" + txt], { type: "text/plain;charset=utf-8" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = `Report_${d.toISOString().slice(0,10)}.txt`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        async function sendToGoogleSheet() {
-            if (!globalData.profit) return alert("กรุณากดคำนวณก่อนครับ");
-            const scriptUrl = getScriptUrl();
-            if (!scriptUrl) return alert("กรุณาใส่ลิงก์ Google Script ในตั้งค่าก่อนครับ");
-
-            const btn = document.getElementById('btnSendSheet');
-            const originalText = btn.innerText;
-            btn.innerText = "⏳ กำลังส่ง...";
-            btn.disabled = true;
-
-            const payload = {
-                date: new Date(document.getElementById('record_date').value).toLocaleDateString('th-TH'),
-                time: new Date().toLocaleTimeString('th-TH'),
-                shop: document.getElementById('shop_name').value || "-",
-                staff: document.getElementById('staff_name').value || "-",
-                actual_rev: globalData.actual_rev,
-                profit: globalData.profit,
-                status: globalData.statusText,
-                diff: globalData.diff,
-                sold_dump: globalData.items.sold_dump || 0,
-                sold_bbq: globalData.items.sold_bbq || 0,
-                sold_indiv: globalData.items.individual || 0,
-                cost_total: globalData.costs.total,
-                wh_value: globalData.warehouse ? globalData.warehouse.totalVal : 0,
-                cash_only: getVal('cash'), 
-                img_stock_base64: window.stockData.base64 || "",
-                img_sales_base64: window.salesData.base64 || ""
-            };
-
-            try {
-                const response = await fetch(scriptUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                alert("✅ ส่งข้อมูลและรูปภาพเรียบร้อย!");
-            } catch (error) {
-                console.error('Error:', error);
-                alert("❌ เกิดข้อผิดพลาดในการส่งข้อมูล");
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
+            document.getElementById('item_breakdown_list').innerHTML = ``; 
         }
 
         async function extractDataFromImage() {
             const apiKey = getApiKey();
             if (!apiKey) return alert("ใส่ API Key ก่อนครับ");
+            
+            if (!window.stockData.base64 && !window.salesData.base64) {
+                 return alert("กรุณาอัปโหลดรูปภาพก่อนใช้งาน AI");
+            }
+
             document.getElementById('btnAutoFill').classList.add('hidden');
             document.getElementById('fillLoading').classList.remove('hidden');
             
-            // ... (Insert real AI fetch logic here if needed, keeping mock for safety in example) ...
-             setTimeout(() => {
-                alert("ฟีเจอร์ AI พร้อมใช้งาน (จำลอง)");
+            try {
+                const contentParts = [{ text: `
+                    คุณคือ AI ช่วยอ่านลายมือจากใบปิดยอดร้านค้า 
+                    หน้าที่ของคุณคือดึงตัวเลขจากภาพที่ระบุ แล้วแปลงเป็น JSON เท่านั้น (ไม่ต้องมีคำอธิบาย)
+                    
+                    ถ้าภาพมีตารางสต็อก (S, C, P, V, BBQ, B):
+                    - S = กุ้ง, C = ไก่, P = หมู, V = ผัก, BBQ = บาร์บีคิว, B = พริก
+                    - prev_bag, prev_unit = ยกมา (ถุง/ตัว)
+                    - add_bag, add_unit = เติม (ถุง/ตัว)
+                    - end_bag, end_unit = เหลือ (ถุง/ตัว)
+                    
+                    ถ้าภาพมีข้อมูลการขาย/เงิน:
+                    - cash = เงินสดในลิ้นชัก
+                    - transfer = ยอดโอน
+                    - daily_expense = จ่ายรายวัน
+                    - waste_dumpling = เสียเกี๊ยว
+                    - waste_bbq = เสีย BBQ
+                    - individual_10_count = ขายแยกตัวละ 10 บาท (ถ้ามี)
+                    - set150_count = ชุด 150
+                    - set250_count = ชุด 250
+                    - set290_count = ชุด 290
+                    
+                    JSON Keys required: 
+                    cash, transfer, daily_expense, waste_dumpling, waste_bbq, individual_10_count, 
+                    set150_count, set250_count, set290_count,
+                    s_prev_bag, s_prev_unit, s_add_bag, s_add_unit, s_end_bag, s_end_unit,
+                    c_prev_bag, c_prev_unit, c_add_bag, c_add_unit, c_end_bag, c_end_unit,
+                    p_prev_bag, p_prev_unit, p_add_bag, p_add_unit, p_end_bag, p_end_unit,
+                    v_prev_bag, v_prev_unit, v_add_bag, v_add_unit, v_end_bag, v_end_unit,
+                    bb_prev_bag, bb_prev_unit, bb_add_bag, bb_add_unit, bb_end_bag, bb_end_unit,
+                    b_prev_bag, b_prev_unit, b_add_bag, b_add_unit, b_end_bag, b_end_unit.
+
+                    Use 0 for missing values. Return ONLY valid JSON string.
+                ` }];
+                
+                if (window.stockData.base64) {
+                    contentParts.push({ inlineData: { mimeType: window.stockData.mime, data: window.stockData.base64 } });
+                }
+                if (window.salesData.base64) {
+                    contentParts.push({ inlineData: { mimeType: window.salesData.mime, data: window.salesData.base64 } });
+                }
+
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ role: "user", parts: contentParts }] })
+                });
+
+                const data = await res.json();
+                
+                if(data.error) {
+                     throw new Error(data.error.message);
+                }
+                
+                let txt = data.candidates[0].content.parts[0].text;
+                const jsonMatch = txt.match(/\{[\s\S]*\}/);
+                if (jsonMatch) txt = jsonMatch[0];
+                
+                const j = JSON.parse(txt);
+
+                const moneyFields = ['cash','transfer','daily_expense', 'waste_dumpling', 'waste_bbq', 'individual_10_count', 'set150_count', 'set290_count', 'set250_count'];
+                moneyFields.forEach(k => {
+                    if (j[k] !== undefined) setVal(k, j[k]);
+                });
+
+                const prodIds = ['s','c','p','v','bb','b'];
+                prodIds.forEach(i => {
+                    ['prev','add','end'].forEach(t => {
+                        if (j[`${i}_${t}_bag`] !== undefined) setVal(`${i}_${t}_bag`, j[`${i}_${t}_bag`]);
+                        if (j[`${i}_${t}_unit`] !== undefined) setVal(`${i}_${t}_unit`, j[`${i}_${t}_unit`]);
+                    });
+                });
+                
+                alert("✅ AI อ่านค่าเสร็จเรียบร้อย! กรุณาตรวจสอบความถูกต้องก่อนบันทึก");
+                autoSave();
+
+            } catch(e) { 
+                console.error(e); 
+                let msg = e.message;
+                if (msg.includes("API key")) {
+                    msg = "API Key ไม่ถูกต้อง หรือหมดอายุ (ตรวจสอบในตั้งค่า)";
+                    document.getElementById('settingsArea').classList.remove('hidden');
+                    document.getElementById('apiKeyInput').focus();
+                }
+                alert("❌ เกิดข้อผิดพลาด AI: " + msg); 
+            } finally {
                 document.getElementById('fillLoading').classList.add('hidden');
                 document.getElementById('btnAutoFill').classList.remove('hidden');
-            }, 1000);
+            }
         }
 
         async function askGemini() {
